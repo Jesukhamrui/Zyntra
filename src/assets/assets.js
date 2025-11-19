@@ -94,6 +94,18 @@ export const assets = {
   cross_icon,
 };
 
+// Default hero slider images. You can add or reorder images here.
+export const hero_images = [
+  hero_img,
+  p_img1,
+  p_img3,
+  p_img4,
+  p_img5,
+];
+
+// also expose through assets for convenience
+assets.hero_images = hero_images;
+
 export const products1 = [
   {
     _id: 'aaaaa',

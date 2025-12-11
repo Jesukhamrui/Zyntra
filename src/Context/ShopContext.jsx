@@ -14,6 +14,33 @@ const ShopContextProvider = ({ children }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [cartItems, setCartItems] = useState({});
   const [orders, setOrders] = useState([]); // New state to hold orders
+  // Admin auth (simple local/dev mock). For production, replace with real auth flow.
+  const [isAdmin, setIsAdmin] = useState(() => {
+    try {
+      return Boolean(localStorage.getItem('isAdmin'));
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const loginAdmin = (password) => {
+    // simple local password check for dev/demo only
+    if (password === 'admin123') {
+      setIsAdmin(true);
+      try {
+        localStorage.setItem('isAdmin', '1');
+      } catch (e) {}
+      return true;
+    }
+    return false;
+  };
+
+  const logoutAdmin = () => {
+    setIsAdmin(false);
+    try {
+      localStorage.removeItem('isAdmin');
+    } catch (e) {}
+  };
   const navigate = useNavigate(); // to navigate to different pages
 
   const addToCart = async (itemId, size) => {
@@ -106,6 +133,10 @@ const ShopContextProvider = ({ children }) => {
     addOrder, // Add this to allow placing orders
     orders,
     navigate,
+    // admin
+    isAdmin,
+    loginAdmin,
+    logoutAdmin,
   };
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;

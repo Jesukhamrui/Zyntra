@@ -85,16 +85,16 @@ const PlaceOrder = () => {
           <div className="flex flex-col lg:flex-row gap-4">
             <div
               onClick={() => {
-                setPaymentMethod('stripe');
+                setPaymentMethod('phonepe');
               }}
               className="flex items-center gap-3 border p-2 px-3 cursor-pointer"
             >
               <p
                 className={` min-w-3.5 h-3.5 border rounded-full ${
-                  paymentMethod === 'stripe' ? 'bg-green-400' : ''
+                  paymentMethod === 'phonepe' ? 'bg-green-400' : ''
                 }`}
               ></p>
-              <img className="h5 mx-4" src={assets.stripe_logo} alt="" />
+              <img className="h-6 w-auto mx-4" src={assets.phonepe_logo} alt="PhonePe" />
             </div>
             <div
               onClick={() => {
@@ -107,7 +107,7 @@ const PlaceOrder = () => {
                   paymentMethod === 'razorpay' ? 'bg-green-400' : ''
                 }`}
               ></p>
-              <img className="h5 mx-4" src={assets.razorpay_logo} alt="" />
+              <img className="h-6 w-auto mx-4" src={assets.paytm_logo} alt="Paytm" />
             </div>
             <div
               onClick={() => {

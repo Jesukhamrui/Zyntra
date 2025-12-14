@@ -70,8 +70,18 @@ import menu_icon from './menu_icon.png';
 import about_img from './about_img.png';
 import contact_img from './contact_img.png';
 import razorpay_logo from './razorpay_logo.png';
-import stripe_logo from './stripe_logo.png';
+import paytm_logo from './Paytm_Logo.png';
+import phonepe_logo from './PhonePe_Logo.png';
 import cross_icon from './cross_icon.png';
+
+// Inline Stripe logo (SVG data URI) to avoid missing asset errors.
+const stripe_logo =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" role="img" aria-label="Stripe">
+  <rect width="400" height="120" rx="16" fill="#635bff"/>
+  <text x="50%" y="55%" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="700">stripe</text>
+</svg>`);
 
 export const assets = {
   logo,
@@ -90,6 +100,8 @@ export const assets = {
   about_img,
   contact_img,
   razorpay_logo,
+  paytm_logo,
+  phonepe_logo,
   stripe_logo,
   cross_icon,
 };

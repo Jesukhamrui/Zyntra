@@ -19,17 +19,19 @@ const ShopContextProvider = ({ children }) => {
     try {
       return Boolean(localStorage.getItem('isAdmin'));
     } catch (e) {
+      // localStorage may not be available
       return false;
     }
   });
-
   const loginAdmin = (password) => {
     // simple local password check for dev/demo only
     if (password === 'admin123') {
       setIsAdmin(true);
       try {
         localStorage.setItem('isAdmin', '1');
-      } catch (e) {}
+      } catch (e) {
+        // localStorage may not be available
+      }
       return true;
     }
     return false;
@@ -39,8 +41,11 @@ const ShopContextProvider = ({ children }) => {
     setIsAdmin(false);
     try {
       localStorage.removeItem('isAdmin');
-    } catch (e) {}
+    } catch (e) {
+      // localStorage may not be available
+    }
   };
+
   const navigate = useNavigate(); // to navigate to different pages
 
   const addToCart = async (itemId, size) => {

@@ -13,18 +13,24 @@ const ShopContextProvider = ({ children }) => {
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [cartItems, setCartItems] = useState({});
-  const [orders, setOrders] = useState([]); // New state to hold orders
-  // Admin auth (simple local/dev mock). For production, replace with real auth flow.
+  const [orders, setOrders] = useState(() => {
+    try {
+      const savedOrders = localStorage.getItem('orders');
+      return savedOrders ? JSON.parse(savedOrders) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   const [isAdmin, setIsAdmin] = useState(() => {
     try {
       return Boolean(localStorage.getItem('isAdmin'));
     } catch (e) {
-      // localStorage may not be available
       return false;
     }
   });
+
   const loginAdmin = (password) => {
-    // simple local password check for dev/demo only
     if (password === 'admin123') {
       setIsAdmin(true);
       try {
@@ -46,7 +52,7 @@ const ShopContextProvider = ({ children }) => {
     }
   };
 
-  const navigate = useNavigate(); // to navigate to different pages
+  const navigate = useNavigate();
 
   const addToCart = async (itemId, size) => {
     if (!size) {
@@ -68,23 +74,50 @@ const ShopContextProvider = ({ children }) => {
     setCartItems(cartData);
   };
 
-  const addOrder = () => {
+  const addOrder = (deliveryInfo, paymentMethod) => {
     let tempOrders = structuredClone(orders);
     let newOrder = [];
 
     for (const item in cartItems) {
       for (const size in cartItems[item]) {
         if (cartItems[item][size] > 0) {
+          const productData = products.find((p) => p._id === item);
           newOrder.push({
             _id: item,
+            name: productData.name,
+            image: productData.image[0],
+            price: productData.price,
             size,
             quantity: cartItems[item][size],
+            date: new Date().toLocaleDateString('en-US', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            }),
+            time: new Date().toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            deliveryInfo,
+            paymentMethod,
+            status: 'Ready to ship',
           });
         }
       }
     }
-    setOrders([...tempOrders, ...newOrder]);
-    //setCartItems({}); // Clear cart after placing the order
+
+    const updatedOrders = [...tempOrders, ...newOrder];
+    setOrders(updatedOrders);
+
+    // Save to localStorage
+    try {
+      localStorage.setItem('orders', JSON.stringify(updatedOrders));
+    } catch (e) {
+      console.log('Failed to save orders to localStorage', e);
+    }
+
+    setCartItems({});
+    toast.success('Order placed successfully!');
   };
 
   const getCartCount = () => {
@@ -135,10 +168,9 @@ const ShopContextProvider = ({ children }) => {
     getCartCount,
     updateQuantity,
     getCartAmount,
-    addOrder, // Add this to allow placing orders
+    addOrder,
     orders,
     navigate,
-    // admin
     isAdmin,
     loginAdmin,
     logoutAdmin,
@@ -150,4 +182,5 @@ const ShopContextProvider = ({ children }) => {
 ShopContextProvider.propTypes = {
   children: PropTypes.node.isRequired,
 };
+
 export default ShopContextProvider;

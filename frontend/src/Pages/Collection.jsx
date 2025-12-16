@@ -28,7 +28,7 @@ const Collection = () => {
       : setSubCategory((prev) => [...prev, value]);
   };
 
-  const applyFilter = () => {
+  useEffect(() => {
     if (!products || products.length === 0) return; // Ensure products are available
 
     let productsCopy = products.slice(); // Create a shallow copy of products
@@ -51,9 +51,9 @@ const Collection = () => {
     }
 
     setFilterProducts(productsCopy); // Update the filtered products state
-  };
+  }, [category, subCategory, search, showSearch, products]);
 
-  const sortProducts = () => {
+  useEffect(() => {
     if (filterProducts.length === 0) return; // Ensure there are products to sort
 
     let filteredProdCopy = [...filterProducts]; // Create a shallow copy of filtered products
@@ -67,23 +67,9 @@ const Collection = () => {
         break;
 
       default:
-        setFilterProducts(() => {
-          applyFilter();
-        });
-
         break;
     }
-
-    setFilterProducts(filteredProdCopy); // Update the filtered products state
-  };
-
-  useEffect(() => {
-    applyFilter();
-  }, [category, subCategory, search, showSearch, products]);
-
-  useEffect(() => {
-    sortProducts();
-  }, [sortType]);
+  }, [sortType, filterProducts]);
 
   return (
     <div className="flex flex-col sm:flex-row gap-1 sm:gap-10 pt-10 border-t">

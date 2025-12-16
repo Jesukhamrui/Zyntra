@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { createContext, useState } from 'react';
-import { products } from '../assets/assets';
+import { products as initialProducts } from '../assets/assets';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,6 +13,14 @@ const ShopContextProvider = ({ children }) => {
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [cartItems, setCartItems] = useState({});
+  const [products, setProducts] = useState(() => {
+    try {
+      const savedProducts = localStorage.getItem('products');
+      return savedProducts ? JSON.parse(savedProducts) : initialProducts;
+    } catch (e) {
+      return initialProducts;
+    }
+  });
   const [orders, setOrders] = useState(() => {
     try {
       const savedOrders = localStorage.getItem('orders');
@@ -53,6 +61,44 @@ const ShopContextProvider = ({ children }) => {
   };
 
   const navigate = useNavigate();
+
+  // Product Management Functions
+  const addProduct = (productData) => {
+    const newProduct = {
+      _id: `product_${Date.now()}`,
+      ...productData,
+      date: Date.now(),
+    };
+    const updatedProducts = [...products, newProduct];
+    setProducts(updatedProducts);
+    try {
+      localStorage.setItem('products', JSON.stringify(updatedProducts));
+    } catch (e) {
+      console.log('Failed to save products', e);
+    }
+  };
+
+  const updateProduct = (productId, productData) => {
+    const updatedProducts = products.map((product) =>
+      product._id === productId ? { ...product, ...productData } : product
+    );
+    setProducts(updatedProducts);
+    try {
+      localStorage.setItem('products', JSON.stringify(updatedProducts));
+    } catch (e) {
+      console.log('Failed to update products', e);
+    }
+  };
+
+  const deleteProduct = (productId) => {
+    const updatedProducts = products.filter((product) => product._id !== productId);
+    setProducts(updatedProducts);
+    try {
+      localStorage.setItem('products', JSON.stringify(updatedProducts));
+    } catch (e) {
+      console.log('Failed to delete product', e);
+    }
+  };
 
   const addToCart = async (itemId, size) => {
     if (!size) {
@@ -109,7 +155,6 @@ const ShopContextProvider = ({ children }) => {
     const updatedOrders = [...tempOrders, ...newOrder];
     setOrders(updatedOrders);
 
-    // Save to localStorage
     try {
       localStorage.setItem('orders', JSON.stringify(updatedOrders));
     } catch (e) {
@@ -174,6 +219,9 @@ const ShopContextProvider = ({ children }) => {
     isAdmin,
     loginAdmin,
     logoutAdmin,
+    addProduct,
+    updateProduct,
+    deleteProduct,
   };
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;

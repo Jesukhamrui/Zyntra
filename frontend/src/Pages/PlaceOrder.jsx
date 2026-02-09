@@ -19,7 +19,8 @@ const PlaceOrder = () => {
     phone: '',
   });
 
-  const { navigate } = useContext(ShopContext);
+  const [orderPlaced, setOrderPlaced] = useState(false);
+  const { navigate, addOrder, getCartCount } = useContext(ShopContext);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -73,10 +74,111 @@ const PlaceOrder = () => {
   };
 
   const handlePlaceOrder = () => {
+    if (getCartCount() === 0) {
+      toast.error('Your cart is empty');
+      return;
+    }
+
     if (validateForm()) {
-      navigate('/orders');
+      const deliveryInfo = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        street: formData.street,
+        city: formData.city,
+        state: formData.state,
+        zipcode: formData.zipcode,
+        country: formData.country,
+        phone: formData.phone,
+      };
+
+      addOrder(deliveryInfo, paymentMethod);
+      setOrderPlaced(true);
     }
   };
+
+  const handleContinueShopping = () => {
+    navigate('/');
+  };
+
+  const handleViewOrders = () => {
+    navigate('/orders');
+  };
+
+  if (orderPlaced) {
+    return (
+      <div className="flex items-center justify-center min-h-[80vh] px-4">
+        <div className="text-center max-w-md">
+          <div className="mb-6 flex justify-center">
+            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+                <svg
+                  className="w-6 h-6 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
+            Order Placed Successfully!
+          </h1>
+          <p className="text-gray-600 text-lg mb-2">Thank you for your order</p>
+          <p className="text-gray-500 text-sm mb-8">
+            We&apos;ve received your order and will process it shortly. You can track your order status anytime.
+          </p>
+
+          <div className="bg-gray-50 rounded-lg p-4 mb-8 text-left">
+            <h3 className="font-semibold text-gray-900 mb-3">Order Details:</h3>
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>
+                <span className="font-medium text-gray-900">Name:</span> {formData.firstName}{' '}
+                {formData.lastName}
+              </p>
+              <p>
+                <span className="font-medium text-gray-900">Email:</span> {formData.email}
+              </p>
+              <p>
+                <span className="font-medium text-gray-900">Phone:</span> {formData.phone}
+              </p>
+              <p>
+                <span className="font-medium text-gray-900">Address:</span> {formData.street},{' '}
+                {formData.city}
+              </p>
+              <p>
+                <span className="font-medium text-gray-900">Payment Method:</span>{' '}
+                {paymentMethod === 'cod' ? 'Cash on Delivery' : paymentMethod}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <button
+              onClick={handleViewOrders}
+              className="flex-1 bg-black text-white px-6 py-3 rounded font-medium hover:bg-gray-800 transition"
+            >
+              View My Orders
+            </button>
+            <button
+              onClick={handleContinueShopping}
+              className="flex-1 border border-gray-400 text-gray-900 px-6 py-3 rounded font-medium hover:bg-gray-100 transition"
+            >
+              Continue Shopping
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col sm:flex-row justify-between gap-4 pt-5 sm:pt-14 min-h-[80vh] border-t">

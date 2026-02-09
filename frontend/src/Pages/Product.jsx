@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState, useCallback } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ShopContext } from '../Context/ShopContext';
 import { assets } from '../assets/assets';
@@ -11,20 +11,16 @@ const Product = () => {
   const [image, setImage] = useState('');
   const [size, setSize] = useState('');
 
-  const fetchProductsData = useCallback(async () => {
-    products.map((product) => {
-      if (product._id === productId) {
-        setProductsData(product);
-        setImage(product.image[0]);
-
-        return null;
-      }
-    });
+  useEffect(() => {
+    const product = products.find((item) => item._id === productId) || null;
+    setProductsData(product);
+    setImage(product?.image?.[0] || '');
+    setSize('');
   }, [productId, products]);
 
   useEffect(() => {
-    fetchProductsData();
-  }, [fetchProductsData]);
+    window.scrollTo(0, 0);
+  }, [productId]);
 
   return productsData ? (
     <div className="border-t-2 pt-10 transition-opacity ease-in duration-500 opacity-100">

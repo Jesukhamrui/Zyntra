@@ -118,6 +118,7 @@ const ShopContextProvider = ({ children }) => {
     }
 
     setCartItems(cartData);
+    toast.success('Item added to cart');
   };
 
   const addOrder = (deliveryInfo, paymentMethod) => {

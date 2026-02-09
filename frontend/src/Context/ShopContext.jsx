@@ -17,7 +17,7 @@ const ShopContextProvider = ({ children }) => {
     try {
       const savedProducts = localStorage.getItem('products');
       return savedProducts ? JSON.parse(savedProducts) : initialProducts;
-    } catch (e) {
+    } catch {
       return initialProducts;
     }
   });
@@ -25,7 +25,7 @@ const ShopContextProvider = ({ children }) => {
     try {
       const savedOrders = localStorage.getItem('orders');
       return savedOrders ? JSON.parse(savedOrders) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -33,7 +33,7 @@ const ShopContextProvider = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(() => {
     try {
       return Boolean(localStorage.getItem('isAdmin'));
-    } catch (e) {
+    } catch {
       return false;
     }
   });
@@ -43,7 +43,7 @@ const ShopContextProvider = ({ children }) => {
       setIsAdmin(true);
       try {
         localStorage.setItem('isAdmin', '1');
-      } catch (e) {
+      } catch {
         // localStorage may not be available
       }
       return true;
@@ -55,7 +55,7 @@ const ShopContextProvider = ({ children }) => {
     setIsAdmin(false);
     try {
       localStorage.removeItem('isAdmin');
-    } catch (e) {
+    } catch {
       // localStorage may not be available
     }
   };
@@ -73,8 +73,8 @@ const ShopContextProvider = ({ children }) => {
     setProducts(updatedProducts);
     try {
       localStorage.setItem('products', JSON.stringify(updatedProducts));
-    } catch (e) {
-      console.log('Failed to save products', e);
+    } catch (error) {
+      console.log('Failed to save products', error);
     }
   };
 
@@ -85,8 +85,8 @@ const ShopContextProvider = ({ children }) => {
     setProducts(updatedProducts);
     try {
       localStorage.setItem('products', JSON.stringify(updatedProducts));
-    } catch (e) {
-      console.log('Failed to update products', e);
+    } catch (error) {
+      console.log('Failed to update products', error);
     }
   };
 
@@ -95,8 +95,8 @@ const ShopContextProvider = ({ children }) => {
     setProducts(updatedProducts);
     try {
       localStorage.setItem('products', JSON.stringify(updatedProducts));
-    } catch (e) {
-      console.log('Failed to delete product', e);
+    } catch (error) {
+      console.log('Failed to delete product', error);
     }
   };
 
@@ -157,8 +157,8 @@ const ShopContextProvider = ({ children }) => {
 
     try {
       localStorage.setItem('orders', JSON.stringify(updatedOrders));
-    } catch (e) {
-      console.log('Failed to save orders to localStorage', e);
+    } catch (error) {
+      console.log('Failed to save orders to localStorage', error);
     }
 
     setCartItems({});

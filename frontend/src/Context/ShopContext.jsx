@@ -118,7 +118,12 @@ const ShopContextProvider = ({ children }) => {
     }
 
     setCartItems(cartData);
-    toast.success('Item added to cart');
+    toast.success('Item added to cart', {
+      autoClose: 1000,
+      closeOnClick: true,
+      hideProgressBar: true,
+      pauseOnHover: false,
+    });
   };
 
   const addOrder = (deliveryInfo, paymentMethod) => {

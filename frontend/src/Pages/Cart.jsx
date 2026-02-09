@@ -5,7 +5,7 @@ import { assets } from '../assets/assets';
 import CartTotal from '../Components/CartTotal';
 
 const Cart = () => {
-  const { products, currency, cartItems, updateQuantity, navigate, addOrder } =
+  const { products, currency, cartItems, updateQuantity, navigate } =
     useContext(ShopContext);
   const [cartData, setCartData] = useState([]);
 
@@ -100,7 +100,6 @@ const Cart = () => {
           <div className="w-full text-end">
             <button
               onClick={() => {
-                addOrder(); // Call addOrder to move items to orders state
                 navigate('/place-order');
               }}
               className="my-8 px-8 py-3 bg-black text-white text-sm"

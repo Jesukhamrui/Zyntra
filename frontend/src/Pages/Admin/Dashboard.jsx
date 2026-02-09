@@ -3,7 +3,7 @@ import { ShopContext } from '../../Context/ShopContext.jsx';
 import { toast } from 'react-toastify';
 
 const AdminDashboard = () => {
-  const { products, orders, logoutAdmin, addProduct, updateProduct, deleteProduct } = useContext(ShopContext);
+  const { products, orders, logoutAdmin, addProduct, updateProduct, deleteProduct, currency } = useContext(ShopContext);
   const [activeTab, setActiveTab] = useState('products'); // 'products', 'orders', 'add'
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({
@@ -137,7 +137,8 @@ const AdminDashboard = () => {
         <div className="bg-white p-6 rounded shadow">
           <h2 className="text-gray-600 text-sm font-medium mb-2">Revenue</h2>
           <p className="text-3xl font-bold text-gray-900">
-            ${orders ? orders.reduce((sum, order) => sum + (order.price * order.quantity), 0) : 0}
+            {currency}
+            {orders ? orders.reduce((sum, order) => sum + (order.price * order.quantity), 0) : 0}
           </p>
         </div>
       </div>
@@ -219,7 +220,10 @@ const AdminDashboard = () => {
                           <td className="border p-2">
                             {product.category} / {product.subCategory}
                           </td>
-                          <td className="border p-2">${product.price}</td>
+                          <td className="border p-2">
+                            {currency}
+                            {product.price}
+                          </td>
                           <td className="border p-2">{product.sizes?.join(', ')}</td>
                           <td className="border p-2">
                             <div className="flex gap-2">
@@ -286,7 +290,8 @@ const AdminDashboard = () => {
                             </span>
                           </td>
                           <td className="border p-2 font-semibold">
-                            ${(order.price || 0) * (order.quantity || 1)}
+                            {currency}
+                            {(order.price || 0) * (order.quantity || 1)}
                           </td>
                         </tr>
                       ))

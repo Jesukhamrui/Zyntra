@@ -7,6 +7,7 @@ import { toast } from 'react-toastify';
 
 const PlaceOrder = () => {
   const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -24,9 +25,17 @@ const PlaceOrder = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    const sanitizedValue =
+      name === 'zipcode'
+        ? value.replace(/\D/g, '').slice(0, 6)
+        : name === 'phone'
+          ? value.replace(/\D/g, '').slice(0, 10)
+          : value;
+
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: sanitizedValue,
     }));
   };
 
@@ -61,16 +70,76 @@ const PlaceOrder = () => {
       toast.error('Zipcode is required');
       return false;
     }
+    if (!/^\d{6}$/.test(zipcode)) {
+      toast.error('Zipcode must be exactly 6 digits');
+      return false;
+    }
     if (!country.trim()) {
       toast.error('Country is required');
       return false;
     }
-    if (!phone.trim() || !/^\d{10}$/.test(phone)) {
-      toast.error('Valid 10-digit Phone Number is required');
+    if (!phone.trim() || !/^[6-9]\d{9}$/.test(phone)) {
+      toast.error('Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9');
+      return false;
+    }
+    if (/^(\d)\1{9}$/.test(phone)) {
+      toast.error('Enter an authentic mobile number');
       return false;
     }
 
     return true;
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported in this browser');
+      return;
+    }
+
+    setIsFetchingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+          );
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch location details');
+          }
+
+          const data = await response.json();
+          const address = data.address || {};
+
+          const street = [address.house_number, address.road].filter(Boolean).join(' ').trim();
+          const city = address.city || address.town || address.village || address.county || '';
+          const postcode = (address.postcode || '').replace(/\D/g, '').slice(0, 6);
+
+          setFormData((prev) => ({
+            ...prev,
+            street: street || prev.street,
+            city: city || prev.city,
+            state: address.state || prev.state,
+            country: address.country || prev.country,
+            zipcode: postcode || prev.zipcode,
+          }));
+
+          toast.success('Location fetched. Please verify and complete your details.');
+        } catch {
+          toast.error('Unable to fetch address details from current location');
+        } finally {
+          setIsFetchingLocation(false);
+        }
+      },
+      () => {
+        toast.error('Unable to access your current location');
+        setIsFetchingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   const handlePlaceOrder = () => {
@@ -193,6 +262,14 @@ const PlaceOrder = () => {
         <div className="text-xl sm:text-2xl my-3 ">
           <Title text1={'DELIVERY'} text2={'INFORMATION'} />
         </div>
+        <button
+          type="button"
+          onClick={handleUseCurrentLocation}
+          disabled={isFetchingLocation}
+          className="border border-gray-300 rounded py-2 px-3.5 w-full text-sm hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isFetchingLocation ? 'Fetching Location...' : 'Use Current Location'}
+        </button>
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
@@ -258,6 +335,10 @@ const PlaceOrder = () => {
             placeholder="Zipcode"
             value={formData.zipcode}
             onChange={handleInputChange}
+            inputMode="numeric"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            title="Zipcode must be exactly 6 digits"
             className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
             required
           />
@@ -277,6 +358,10 @@ const PlaceOrder = () => {
           placeholder="Phone"
           value={formData.phone}
           onChange={handleInputChange}
+          inputMode="numeric"
+          pattern="[6-9][0-9]{9}"
+          maxLength={10}
+          title="Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9"
           className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
           required
         />

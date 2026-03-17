@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 const PlaceOrder = () => {
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -143,12 +144,15 @@ const PlaceOrder = () => {
   };
 
   const handlePlaceOrder = () => {
+    if (isPlacingOrder) return;
+
     if (getCartCount() === 0) {
       toast.error('Your cart is empty');
       return;
     }
 
     if (validateForm()) {
+      setIsPlacingOrder(true);
       const deliveryInfo = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -163,6 +167,7 @@ const PlaceOrder = () => {
 
       addOrder(deliveryInfo, paymentMethod);
       setOrderPlaced(true);
+      setIsPlacingOrder(false);
     }
   };
 
@@ -171,7 +176,7 @@ const PlaceOrder = () => {
   };
 
   const handleViewOrders = () => {
-    navigate('/orders');
+    navigate('/profile?tab=orders');
   };
 
   if (orderPlaced) {
@@ -423,9 +428,10 @@ const PlaceOrder = () => {
           <div className="w-full text-end mt-8">
             <button
               onClick={handlePlaceOrder}
-              className="bg-black text-white px-16 py-3 text-sm hover:bg-gray-800 transition"
+              disabled={isPlacingOrder}
+              className="bg-black text-white px-16 py-3 text-sm hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              PLACE ORDER
+              {isPlacingOrder ? 'PLACING ORDER...' : 'PLACE ORDER'}
             </button>
           </div>
         </div>

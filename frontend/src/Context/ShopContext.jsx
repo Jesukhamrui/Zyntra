@@ -29,6 +29,14 @@ const ShopContextProvider = ({ children }) => {
       return [];
     }
   });
+  const [wishlistItems, setWishlistItems] = useState(() => {
+    try {
+      const savedWishlist = localStorage.getItem('wishlistItems');
+      return savedWishlist ? JSON.parse(savedWishlist) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [isAdmin, setIsAdmin] = useState(() => {
     try {
@@ -126,6 +134,33 @@ const ShopContextProvider = ({ children }) => {
     });
   };
 
+  const toggleWishlist = (itemId) => {
+    setWishlistItems((prev) => {
+      const alreadyInWishlist = prev.includes(itemId);
+      const updatedWishlist = alreadyInWishlist
+        ? prev.filter((id) => id !== itemId)
+        : [...prev, itemId];
+
+      try {
+        localStorage.setItem('wishlistItems', JSON.stringify(updatedWishlist));
+      } catch (error) {
+        console.log('Failed to save wishlist', error);
+      }
+
+      toast.success(alreadyInWishlist ? 'Removed from wishlist' : 'Added to wishlist', {
+        autoClose: 1000,
+        closeOnClick: true,
+        hideProgressBar: true,
+        pauseOnHover: false,
+      });
+
+      return updatedWishlist;
+    });
+  };
+
+  const isInWishlist = (itemId) => wishlistItems.includes(itemId);
+  const wishlistProducts = products.filter((product) => wishlistItems.includes(product._id));
+
   const addOrder = (deliveryInfo, paymentMethod) => {
     let tempOrders = structuredClone(orders);
     let newOrder = [];
@@ -215,7 +250,11 @@ const ShopContextProvider = ({ children }) => {
     showSearch,
     setShowSearch,
     cartItems,
+    wishlistItems,
+    wishlistProducts,
     addToCart,
+    toggleWishlist,
+    isInWishlist,
     getCartCount,
     updateQuantity,
     getCartAmount,

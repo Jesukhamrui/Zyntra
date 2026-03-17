@@ -4,11 +4,27 @@ import { ShopContext } from '../Context/ShopContext';
 import { Link } from 'react-router-dom';
 
 const ProductItem = ({ id, image, name, price }) => {
-  const { currency } = useContext(ShopContext);
+  const { currency, toggleWishlist, isInWishlist } = useContext(ShopContext);
+  const isWishlisted = isInWishlist(id);
 
   return (
-    <Link to={`/product/${id}`} className="text-gray-700 cursor-pointer">
-      <div className="overflow-hidden border rounded-lg p-4 shadow-sm  h-[300px]">
+    <div className="relative text-gray-700 cursor-pointer">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleWishlist(id);
+        }}
+        className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-white border border-gray-300 flex items-center justify-center"
+        aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+      >
+        <span className={`text-base ${isWishlisted ? 'text-red-500' : 'text-gray-400'}`}>
+          ♥
+        </span>
+      </button>
+      <Link to={`/product/${id}`} className="block">
+        <div className="overflow-hidden border rounded-lg p-4 shadow-sm  h-[300px]">
         <img
           src={image[0]}
           alt=""
@@ -19,8 +35,9 @@ const ProductItem = ({ id, image, name, price }) => {
           {currency}
           {price}
         </p>
-      </div>
-    </Link>
+        </div>
+      </Link>
+    </div>
   );
 };
 

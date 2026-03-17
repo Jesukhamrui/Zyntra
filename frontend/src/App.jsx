@@ -14,6 +14,7 @@ import Navbar from './Components/Navbar';
 import Footer from './Components/Footer';
 import SearchBar from './Components/SearchBar';
 import ProtectedRoute from './Components/ProtectedRoute';
+import CustomerRoute from './Components/CustomerRoute';
 import AdminLogin from './Pages/Admin/Login';
 import AdminDashboard from './Pages/Admin/Dashboard';
 import { ToastContainer, toast } from 'react-toastify';
@@ -37,7 +38,14 @@ function App() {
         <Route path="/product/:productId" element={<Product />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/profile" element={<Profile />} />
+        <Route
+          path="/profile"
+          element={
+            <CustomerRoute>
+              <Profile />
+            </CustomerRoute>
+          }
+        />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route
           path="/admin"

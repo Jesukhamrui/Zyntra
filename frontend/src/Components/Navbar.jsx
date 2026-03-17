@@ -6,7 +6,7 @@ import { ShopContext } from '../Context/ShopContext';
 const Navbar = () => {
   const [visible, setVisible] = useState(false);
   const [isCustomerLoggedIn, setIsCustomerLoggedIn] = useState(false);
-  const { setShowSearch, getCartCount } = useContext(ShopContext);
+  const { setShowSearch, getCartCount, getWishlistCount } = useContext(ShopContext);
 
   useEffect(() => {
     try {
@@ -14,6 +14,14 @@ const Navbar = () => {
     } catch {
       setIsCustomerLoggedIn(false);
     }
+
+    const syncLoginState = (event) => {
+      if (event.key !== 'isCustomerLoggedIn') return;
+      setIsCustomerLoggedIn(event.newValue === '1');
+    };
+
+    window.addEventListener('storage', syncLoginState);
+    return () => window.removeEventListener('storage', syncLoginState);
   }, []);
 
   return (
@@ -57,6 +65,9 @@ const Navbar = () => {
               alt=""
               className="w-5 cursor-pointer"
             />
+            <p className="absolute right-[-6px] top-[-6px] w-4 text-center leading-4 bg-black text-white aspect-square rounded-full text-[8px]">
+              {getWishlistCount()}
+            </p>
           </Link>
           
           </div>

@@ -1,10 +1,42 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
+  const navigate = useNavigate();
   const [currentState, setCurrentState] = useState('Sign Up');
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+  });
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
   const onSubmmitHandler = (e) => {
     e.preventDefault();
+
+    const profileData = {
+      name: formData.name.trim() || 'Guest User',
+      email: formData.email.trim(),
+      location: 'Bangalore, India',
+      nationality: 'Indian',
+      dateOfBirth: '01 Jan 1998',
+    };
+
+    try {
+      localStorage.setItem('isCustomerLoggedIn', '1');
+      localStorage.setItem('customerProfile', JSON.stringify(profileData));
+    } catch {
+      // ignore storage errors
+    }
+
+    navigate('/profile');
   };
 
   return (
@@ -21,22 +53,31 @@ const Login = () => {
         {currentState === 'Sign Up' ? (
           <input
             type="text"
+            name="name"
             className="w-Full px-3 py-2 border border-gray-880"
             placeholder="Name"
+            value={formData.name}
+            onChange={handleInputChange}
             required
           />
         ) : null}
 
         <input
           type="email"
+          name="email"
           className="w-Full px-3 py-2 border border-gray-880"
           placeholder="Email"
+          value={formData.email}
+          onChange={handleInputChange}
           required
         />
         <input
           type="password"
+          name="password"
           className="w-Full px-3 py-2 border border-gray-880"
           placeholder="Password"
+          value={formData.password}
+          onChange={handleInputChange}
           required
         />
 

@@ -1,29 +1,65 @@
-import { useContext, useState } from 'react';
-import { assets } from '../assets/assets';
-import CartTotal from '../Components/CartTotal';
-import Title from '../Components/Title';
+import { useContext, useMemo, useState } from 'react';
 import { ShopContext } from '../Context/ShopContext';
+import Title from '../Components/Title';
 import { toast } from 'react-toastify';
 
-const PlaceOrder = () => {
-  const [paymentMethod, setPaymentMethod] = useState('cod');
-  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
+const Orders = () => {
+  const { orders, currency, getOrderStatus, updateOrderDeliveryInfo, navigate } = useContext(ShopContext);
+  const [editingOrderKey, setEditingOrderKey] = useState('');
+  const [editForm, setEditForm] = useState({
+    phone: '',
     street: '',
     city: '',
     state: '',
     zipcode: '',
     country: '',
-    phone: '',
   });
-  const [orderPlaced, setOrderPlaced] = useState(false);
 
-  const { navigate, addOrder, getCartCount } = useContext(ShopContext);
+  const groupedOrders = useMemo(() => {
+    const map = new Map();
 
-  const handleInputChange = (e) => {
+    orders.forEach((item, index) => {
+      const key = item.orderId || `${item.date}-${item.time}-${index}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          orderId: item.orderId || 'N/A',
+          date: item.date,
+          time: item.time,
+          placedAt: Number(item.placedAt) || Date.now(),
+          paymentMethod: item.paymentMethod,
+          status: item.status,
+          deliveryInfo: item.deliveryInfo,
+          items: [],
+          totalAmount: 0,
+        });
+      }
+
+      const group = map.get(key);
+      group.items.push(item);
+      group.totalAmount += item.price * item.quantity;
+    });
+
+    return Array.from(map.values()).reverse();
+  }, [orders]);
+
+  const startEdit = (order) => {
+    setEditingOrderKey(order.key);
+    setEditForm({
+      phone: order.deliveryInfo?.phone || '',
+      street: order.deliveryInfo?.street || '',
+      city: order.deliveryInfo?.city || '',
+      state: order.deliveryInfo?.state || '',
+      zipcode: order.deliveryInfo?.zipcode || '',
+      country: order.deliveryInfo?.country || '',
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingOrderKey('');
+  };
+
+  const handleEditChange = (e) => {
     const { name, value } = e.target;
 
     const sanitizedValue =
@@ -33,411 +69,187 @@ const PlaceOrder = () => {
           ? value.replace(/\D/g, '').slice(0, 10)
           : value;
 
-    setFormData((prev) => ({
+    setEditForm((prev) => ({
       ...prev,
       [name]: sanitizedValue,
     }));
   };
 
-  const validateForm = () => {
-    const { firstName, lastName, email, street, city, state, zipcode, country, phone } = formData;
+  const saveEdit = (order) => {
+    if (!/^[6-9]\d{9}$/.test(editForm.phone) || /^(\d)\1{9}$/.test(editForm.phone)) {
+      toast.error('Enter a valid authentic 10-digit phone number');
+      return;
+    }
 
-    if (!firstName.trim()) {
-      toast.error('First Name is required');
-      return false;
-    }
-    if (!lastName.trim()) {
-      toast.error('Last Name is required');
-      return false;
-    }
-    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
-      toast.error('Valid Email is required');
-      return false;
-    }
-    if (!street.trim()) {
-      toast.error('Street is required');
-      return false;
-    }
-    if (!city.trim()) {
-      toast.error('City is required');
-      return false;
-    }
-    if (!state.trim()) {
-      toast.error('State is required');
-      return false;
-    }
-    if (!zipcode.trim()) {
-      toast.error('Zipcode is required');
-      return false;
-    }
-    if (!/^\d{6}$/.test(zipcode)) {
+    if (!/^\d{6}$/.test(editForm.zipcode)) {
       toast.error('Zipcode must be exactly 6 digits');
-      return false;
-    }
-    if (!country.trim()) {
-      toast.error('Country is required');
-      return false;
-    }
-    if (!phone.trim() || !/^[6-9]\d{9}$/.test(phone)) {
-      toast.error('Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9');
-      return false;
-    }
-    if (/^(\d)\1{9}$/.test(phone)) {
-      toast.error('Enter an authentic mobile number');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error('Geolocation is not supported in this browser');
       return;
     }
 
-    setIsFetchingLocation(true);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-
-        try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
-          );
-
-          if (!response.ok) {
-            throw new Error('Failed to fetch location details');
-          }
-
-          const data = await response.json();
-          const address = data.address || {};
-
-          const street = [address.house_number, address.road].filter(Boolean).join(' ').trim();
-          const city = address.city || address.town || address.village || address.county || '';
-          const postcode = (address.postcode || '').replace(/\D/g, '').slice(0, 6);
-
-          setFormData((prev) => ({
-            ...prev,
-            street: street || prev.street,
-            city: city || prev.city,
-            state: address.state || prev.state,
-            country: address.country || prev.country,
-            zipcode: postcode || prev.zipcode,
-          }));
-
-          toast.success('Location fetched. Please verify and complete your details.');
-        } catch {
-          toast.error('Unable to fetch address details from current location');
-        } finally {
-          setIsFetchingLocation(false);
-        }
-      },
-      () => {
-        toast.error('Unable to access your current location');
-        setIsFetchingLocation(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
-  const handlePlaceOrder = () => {
-    if (getCartCount() === 0) {
-      toast.error('Your cart is empty');
+    if (!editForm.street.trim() || !editForm.city.trim() || !editForm.state.trim() || !editForm.country.trim()) {
+      toast.error('Address fields are required');
       return;
     }
 
-    if (validateForm()) {
-      const deliveryInfo = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        street: formData.street,
-        city: formData.city,
-        state: formData.state,
-        zipcode: formData.zipcode,
-        country: formData.country,
-        phone: formData.phone,
-      };
+    updateOrderDeliveryInfo(order.orderId, order.date, order.time, {
+      phone: editForm.phone,
+      street: editForm.street.trim(),
+      city: editForm.city.trim(),
+      state: editForm.state.trim(),
+      zipcode: editForm.zipcode,
+      country: editForm.country.trim(),
+    });
 
-      addOrder(deliveryInfo, paymentMethod);
-      setOrderPlaced(true);
-    }
+    toast.success('Order contact details updated');
+    setEditingOrderKey('');
   };
 
-  const handleContinueShopping = () => {
-    navigate('/');
-  };
-
-  const handleViewOrders = () => {
-    navigate('/orders');
-  };
-
-  // Success Message Screen
-  if (orderPlaced) {
+  if (groupedOrders.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[80vh] px-4">
-        <div className="text-center max-w-md">
-          {/* Success Icon */}
-          <div className="mb-6 flex justify-center">
-            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Success Message */}
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
-            Order Placed Successfully!
-          </h1>
-          <p className="text-gray-600 text-lg mb-2">
-            Thank you for your order
-          </p>
-          <p className="text-gray-500 text-sm mb-8">
-            We&apos;ve received your order and will process it shortly. You can track your order status anytime.
-          </p>
-
-          {/* Order Details Summary */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-8 text-left">
-            <h3 className="font-semibold text-gray-900 mb-3">Order Details:</h3>
-            <div className="space-y-2 text-sm text-gray-600">
-              <p>
-                <span className="font-medium text-gray-900">Name:</span> {formData.firstName} {formData.lastName}
-              </p>
-              <p>
-                <span className="font-medium text-gray-900">Email:</span> {formData.email}
-              </p>
-              <p>
-                <span className="font-medium text-gray-900">Phone:</span> {formData.phone}
-              </p>
-              <p>
-                <span className="font-medium text-gray-900">Address:</span> {formData.street}, {formData.city}
-              </p>
-              <p>
-                <span className="font-medium text-gray-900">Payment Method:</span>{' '}
-                {paymentMethod === 'cod' ? 'Cash on Delivery' : paymentMethod}
-              </p>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-            <button
-              onClick={handleViewOrders}
-              className="flex-1 bg-black text-white px-6 py-3 rounded font-medium hover:bg-gray-800 transition"
-            >
-              View My Orders
-            </button>
-            <button
-              onClick={handleContinueShopping}
-              className="flex-1 border border-gray-400 text-gray-900 px-6 py-3 rounded font-medium hover:bg-gray-100 transition"
-            >
-              Continue Shopping
-            </button>
-          </div>
+      <div className="border-t pt-16 min-h-[70vh]">
+        <div className="text-2xl mb-6">
+          <Title text1={'MY'} text2={'ORDERS'} />
+        </div>
+        <div className="border rounded-md p-6 text-center text-gray-600">
+          <p className="mb-4">You have not placed any orders yet.</p>
+          <button
+            onClick={() => navigate('/collection')}
+            className="bg-black text-white px-6 py-2 text-sm hover:bg-gray-800 transition"
+          >
+            SHOP NOW
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col sm:flex-row justify-between gap-4 pt-5 sm:pt-14 min-h-[80vh] border-t">
-      {/* --------------- Left Side ----------------------- */}
-
-      <div className="flex flex-col gap-4 w-full sm:max-w-[480px]">
-        <div className="text-xl sm:text-2xl my-3 ">
-          <Title text1={'DELIVERY'} text2={'INFORMATION'} />
-        </div>
-        <button
-          type="button"
-          onClick={handleUseCurrentLocation}
-          disabled={isFetchingLocation}
-          className="border border-gray-300 rounded py-2 px-3.5 w-full text-sm hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {isFetchingLocation ? 'Fetching Location...' : 'Use Current Location'}
-        </button>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="text"
-            name="firstName"
-            placeholder="First Name"
-            value={formData.firstName}
-            onChange={handleInputChange}
-            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-            required
-          />
-          <input
-            type="text"
-            name="lastName"
-            placeholder="Last Name"
-            value={formData.lastName}
-            onChange={handleInputChange}
-            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-            required
-          />
-        </div>
-        <input
-          type="email"
-          name="email"
-          placeholder="Email Address"
-          value={formData.email}
-          onChange={handleInputChange}
-          className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-          required
-        />
-        <input
-          type="text"
-          name="street"
-          placeholder="Street"
-          value={formData.street}
-          onChange={handleInputChange}
-          className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-          required
-        />
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="text"
-            name="city"
-            placeholder="City"
-            value={formData.city}
-            onChange={handleInputChange}
-            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-            required
-          />
-          <input
-            type="text"
-            name="state"
-            placeholder="State"
-            value={formData.state}
-            onChange={handleInputChange}
-            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-            required
-          />
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="text"
-            name="zipcode"
-            placeholder="Zipcode"
-            value={formData.zipcode}
-            onChange={handleInputChange}
-            inputMode="numeric"
-            pattern="[0-9]{6}"
-            maxLength={6}
-            title="Zipcode must be exactly 6 digits"
-            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-            required
-          />
-          <input
-            type="text"
-            name="country"
-            placeholder="Country"
-            value={formData.country}
-            onChange={handleInputChange}
-            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-            required
-          />
-        </div>
-        <input
-          type="tel"
-          name="phone"
-          placeholder="Phone"
-          value={formData.phone}
-          onChange={handleInputChange}
-          inputMode="numeric"
-          pattern="[6-9][0-9]{9}"
-          maxLength={10}
-          title="Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9"
-          className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-          required
-        />
+    <div className="border-t pt-16">
+      <div className="text-2xl mb-6">
+        <Title text1={'MY'} text2={'ORDERS'} />
       </div>
 
-      {/* --------------- Right Side ----------------------- */}
+      <div className="space-y-5">
+        {groupedOrders.map((order) => {
+          const liveStatus = getOrderStatus(order.placedAt);
+          const isEditing = editingOrderKey === order.key;
 
-      <div className="mt-8">
-        <div className="mt-8 min-w-80">
-          <CartTotal />
-        </div>
+          return (
+            <div key={order.key} className="border rounded-xl p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-3">
+                <div>
+                  <p className="text-sm text-gray-700">Order ID: <span className="font-medium">{order.orderId}</span></p>
+                  <p className="text-sm text-gray-600">{order.date} · {order.time}</p>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  <span className="font-medium">{liveStatus}</span>
+                </div>
+              </div>
 
-        <div className="mt-12">
-          <Title text1={'PAYMENT'} text2={'METHOD'} />
+              <div className="space-y-3 mt-3">
+                {order.items.map((item, idx) => (
+                  <div key={`${item._id}-${item.size}-${idx}`} className="flex items-center gap-3">
+                    <img src={item.image} alt={item.name} className="w-14 h-14 rounded object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.name}</p>
+                      <p className="text-sm text-gray-600">{currency}{item.price} · Qty {item.quantity} · Size {item.size}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-          {/* -------------- Payment method selection -------------- */}
+              <div className="mt-4 text-sm text-gray-700 space-y-1">
+                <p>Customer: {order.deliveryInfo?.firstName} {order.deliveryInfo?.lastName}</p>
+                <p>Email: {order.deliveryInfo?.email}</p>
+                {!isEditing ? (
+                  <>
+                    <p>Phone: {order.deliveryInfo?.phone}</p>
+                    <p>
+                      Address: {order.deliveryInfo?.street}, {order.deliveryInfo?.city}, {order.deliveryInfo?.state}, {order.deliveryInfo?.country} - {order.deliveryInfo?.zipcode}
+                    </p>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    <input
+                      name="phone"
+                      value={editForm.phone}
+                      onChange={handleEditChange}
+                      placeholder="Phone"
+                      className="border rounded px-3 py-2"
+                    />
+                    <input
+                      name="zipcode"
+                      value={editForm.zipcode}
+                      onChange={handleEditChange}
+                      placeholder="Zipcode"
+                      className="border rounded px-3 py-2"
+                    />
+                    <input
+                      name="street"
+                      value={editForm.street}
+                      onChange={handleEditChange}
+                      placeholder="Street"
+                      className="border rounded px-3 py-2 sm:col-span-2"
+                    />
+                    <input
+                      name="city"
+                      value={editForm.city}
+                      onChange={handleEditChange}
+                      placeholder="City"
+                      className="border rounded px-3 py-2"
+                    />
+                    <input
+                      name="state"
+                      value={editForm.state}
+                      onChange={handleEditChange}
+                      placeholder="State"
+                      className="border rounded px-3 py-2"
+                    />
+                    <input
+                      name="country"
+                      value={editForm.country}
+                      onChange={handleEditChange}
+                      placeholder="Country"
+                      className="border rounded px-3 py-2 sm:col-span-2"
+                    />
+                  </div>
+                )}
+                <p>Payment: {order.paymentMethod}</p>
+                <p>Total: {currency}{order.totalAmount}</p>
+              </div>
 
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div
-              onClick={() => {
-                setPaymentMethod('phonepe');
-              }}
-              className="flex items-center gap-3 border p-2 px-3 cursor-pointer"
-            >
-              <p
-                className={` min-w-3.5 h-3.5 border rounded-full ${
-                  paymentMethod === 'phonepe' ? 'bg-green-400' : ''
-                }`}
-              ></p>
-              <img className="h-6 w-auto mx-4" src={assets.phonepe_logo} alt="PhonePe" />
+              <div className="mt-4 flex gap-2">
+                {!isEditing ? (
+                  <button
+                    onClick={() => startEdit(order)}
+                    className="px-4 py-2 border rounded text-sm hover:bg-gray-50"
+                  >
+                    Update Phone & Address
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => saveEdit(order)}
+                      className="px-4 py-2 bg-black text-white rounded text-sm hover:bg-gray-800"
+                    >
+                      Save Details
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="px-4 py-2 border rounded text-sm hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-            <div
-              onClick={() => {
-                setPaymentMethod('razorpay');
-              }}
-              className="flex items-center gap-3 border p-2 px-3 cursor-pointer"
-            >
-              <p
-                className={` min-w-3.5 h-3.5 border rounded-full ${
-                  paymentMethod === 'razorpay' ? 'bg-green-400' : ''
-                }`}
-              ></p>
-              <img className="h-6 w-auto mx-4" src={assets.paytm_logo} alt="Paytm" />
-            </div>
-            <div
-              onClick={() => {
-                setPaymentMethod('cod');
-              }}
-              className="flex items-center gap-3 border p-2 px-3 cursor-pointer"
-            >
-              <p
-                className={` min-w-3.5 h-3.5 border rounded-full ${
-                  paymentMethod === 'cod' ? 'bg-green-400' : ''
-                }`}
-              ></p>
-              <p className="text-gray-500 text-sm font-medium mx-4">
-                CASH ON DELIVERY
-              </p>
-            </div>
-          </div>
-
-          {/* -------------- Payment method selection -------------- */}
-
-          <div className="w-full text-end mt-8">
-            <button
-              onClick={handlePlaceOrder}
-              className="bg-black text-white px-16 py-3 text-sm hover:bg-gray-800 transition"
-            >
-              PLACE ORDER
-            </button>
-          </div>
-        </div>
+          );
+        })}
       </div>
     </div>
   );
 };
 
-export default PlaceOrder;
-
+export default Orders;

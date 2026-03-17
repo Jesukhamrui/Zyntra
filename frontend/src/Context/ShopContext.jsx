@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { createContext, useState } from 'react';
+import { createContext, useEffect, useState } from 'react';
 import { products as initialProducts } from '../assets/assets';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
@@ -12,7 +12,14 @@ const ShopContextProvider = ({ children }) => {
 
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [cartItems, setCartItems] = useState({});
+  const [cartItems, setCartItems] = useState(() => {
+    try {
+      const savedCart = localStorage.getItem('cartItems');
+      return savedCart ? JSON.parse(savedCart) : {};
+    } catch {
+      return {};
+    }
+  });
   const [products, setProducts] = useState(() => {
     try {
       const savedProducts = localStorage.getItem('products');
@@ -70,6 +77,27 @@ const ShopContextProvider = ({ children }) => {
 
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const syncStorageData = (event) => {
+      try {
+        if (event.key === 'cartItems') {
+          setCartItems(event.newValue ? JSON.parse(event.newValue) : {});
+        }
+        if (event.key === 'wishlistItems') {
+          setWishlistItems(event.newValue ? JSON.parse(event.newValue) : []);
+        }
+        if (event.key === 'orders') {
+          setOrders(event.newValue ? JSON.parse(event.newValue) : []);
+        }
+      } catch {
+        // ignore malformed storage values
+      }
+    };
+
+    window.addEventListener('storage', syncStorageData);
+    return () => window.removeEventListener('storage', syncStorageData);
+  }, []);
+
   // Product Management Functions
   const addProduct = (productData) => {
     const newProduct = {
@@ -126,6 +154,11 @@ const ShopContextProvider = ({ children }) => {
     }
 
     setCartItems(cartData);
+    try {
+      localStorage.setItem('cartItems', JSON.stringify(cartData));
+    } catch (error) {
+      console.log('Failed to save cart', error);
+    }
     toast.success('Item added to cart', {
       autoClose: 1000,
       closeOnClick: true,
@@ -164,6 +197,9 @@ const ShopContextProvider = ({ children }) => {
   const addOrder = (deliveryInfo, paymentMethod) => {
     let tempOrders = structuredClone(orders);
     let newOrder = [];
+    const orderId = `ORD-${Date.now()}`;
+
+    const placedAt = Date.now();
 
     for (const item in cartItems) {
       for (const size in cartItems[item]) {
@@ -185,9 +221,11 @@ const ShopContextProvider = ({ children }) => {
               hour: '2-digit',
               minute: '2-digit',
             }),
+            placedAt,
+            orderId,
             deliveryInfo,
             paymentMethod,
-            status: 'Ready to ship',
+            status: 'Order Confirmed',
           });
         }
       }
@@ -203,7 +241,63 @@ const ShopContextProvider = ({ children }) => {
     }
 
     setCartItems({});
+    try {
+      localStorage.setItem('cartItems', JSON.stringify({}));
+    } catch (error) {
+      console.log('Failed to clear cart in localStorage', error);
+    }
     toast.success('Order placed successfully!');
+  };
+
+  const updateOrderDeliveryInfo = (orderId, orderDate, orderTime, updates) => {
+    const updatedOrders = orders.map((order) => {
+      const matchesByOrderId = order.orderId && order.orderId === orderId;
+      const matchesByDateTime = !order.orderId && order.date === orderDate && order.time === orderTime;
+
+      if (!matchesByOrderId && !matchesByDateTime) {
+        return order;
+      }
+
+      return {
+        ...order,
+        deliveryInfo: {
+          ...order.deliveryInfo,
+          ...updates,
+        },
+      };
+    });
+
+    setOrders(updatedOrders);
+
+    try {
+      localStorage.setItem('orders', JSON.stringify(updatedOrders));
+    } catch (error) {
+      console.log('Failed to update order delivery info', error);
+    }
+  };
+
+  const updateOrderPaymentMethod = (orderId, orderDate, orderTime, paymentMethod) => {
+    const updatedOrders = orders.map((order) => {
+      const matchesByOrderId = order.orderId && order.orderId === orderId;
+      const matchesByDateTime = !order.orderId && order.date === orderDate && order.time === orderTime;
+
+      if (!matchesByOrderId && !matchesByDateTime) {
+        return order;
+      }
+
+      return {
+        ...order,
+        paymentMethod,
+      };
+    });
+
+    setOrders(updatedOrders);
+
+    try {
+      localStorage.setItem('orders', JSON.stringify(updatedOrders));
+    } catch (error) {
+      console.log('Failed to update payment method', error);
+    }
   };
 
   const getCartCount = () => {
@@ -222,6 +316,25 @@ const ShopContextProvider = ({ children }) => {
     let cartData = structuredClone(cartItems);
     cartData[itemId][size] = quantity;
     setCartItems(cartData);
+    try {
+      localStorage.setItem('cartItems', JSON.stringify(cartData));
+    } catch (error) {
+      console.log('Failed to update cart', error);
+    }
+  };
+
+  const getWishlistCount = () => wishlistItems.length;
+
+  const getOrderStatus = (placedAtValue, currentTime = Date.now()) => {
+    const fallbackTime = currentTime;
+    const numericPlacedAt = Number(placedAtValue) || fallbackTime;
+    const elapsedMinutes = (currentTime - numericPlacedAt) / (1000 * 60);
+
+    if (elapsedMinutes < 1) return 'Order Confirmed';
+    if (elapsedMinutes < 2) return 'Packed';
+    if (elapsedMinutes < 3) return 'Shipped';
+    if (elapsedMinutes < 5) return 'Out for Delivery';
+    return 'Delivered';
   };
 
   const getCartAmount = () => {
@@ -255,10 +368,14 @@ const ShopContextProvider = ({ children }) => {
     addToCart,
     toggleWishlist,
     isInWishlist,
+    getWishlistCount,
+    getOrderStatus,
     getCartCount,
     updateQuantity,
     getCartAmount,
     addOrder,
+    updateOrderDeliveryInfo,
+    updateOrderPaymentMethod,
     orders,
     navigate,
     isAdmin,

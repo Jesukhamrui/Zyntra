@@ -300,6 +300,22 @@ const ShopContextProvider = ({ children }) => {
     }
   };
 
+  const cancelOrder = (orderId, orderDate, orderTime) => {
+    const updatedOrders = orders.filter((order) => {
+      const matchesByOrderId = order.orderId && order.orderId === orderId;
+      const matchesByDateTime = !order.orderId && order.date === orderDate && order.time === orderTime;
+      return !(matchesByOrderId || matchesByDateTime);
+    });
+
+    setOrders(updatedOrders);
+
+    try {
+      localStorage.setItem('orders', JSON.stringify(updatedOrders));
+    } catch (error) {
+      console.log('Failed to cancel order', error);
+    }
+  };
+
   const getCartCount = () => {
     let totalCount = 0;
     for (const item in cartItems) {
@@ -376,6 +392,7 @@ const ShopContextProvider = ({ children }) => {
     addOrder,
     updateOrderDeliveryInfo,
     updateOrderPaymentMethod,
+    cancelOrder,
     orders,
     navigate,
     isAdmin,

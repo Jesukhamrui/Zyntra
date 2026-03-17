@@ -6,7 +6,7 @@ import RelatedProducts from '../Components/RelatedProducts';
 
 const Product = () => {
   const { productId } = useParams();
-  const { products, currency, addToCart } = useContext(ShopContext);
+  const { products, currency, addToCart, toggleWishlist, isInWishlist } = useContext(ShopContext);
   const [productsData, setProductsData] = useState(false);
   const [image, setImage] = useState('');
   const [size, setSize] = useState('');
@@ -98,6 +98,12 @@ const Product = () => {
             className="bg-black text-white py-3 px-8 text-sm active:bg-gray-700"
           >
             ADD TO CART
+          </button>
+          <button
+            onClick={() => toggleWishlist(productsData._id)}
+            className="ml-3 border border-gray-300 py-3 px-6 text-sm"
+          >
+            {isInWishlist(productsData._id) ? 'REMOVE FROM WISHLIST' : 'ADD TO WISHLIST'}
           </button>
 
           <hr className="mt-8 sm:w-4/5" />

@@ -22,6 +22,7 @@ const Profile = () => {
     getOrderStatus,
     updateOrderDeliveryInfo,
     updateOrderPaymentMethod,
+    cancelOrder,
   } = useContext(ShopContext);
   const [activeTab, setActiveTab] = useState('personal');
   const [isEditing, setIsEditing] = useState(false);
@@ -210,6 +211,13 @@ const Profile = () => {
   const handlePayOnline = (order) => {
     updateOrderPaymentMethod(order.orderId, order.date, order.time, 'Online Paid');
     toast.success('Payment updated to Online Paid');
+  };
+
+  const handleCancelOrder = (order) => {
+    cancelOrder(order.orderId, order.date, order.time);
+    setExpandedOrderKey('');
+    setEditingOrderKey('');
+    toast.success('Order cancelled and removed');
   };
 
   const handleLogout = () => {
@@ -474,18 +482,50 @@ const Profile = () => {
                       <button
                         type="button"
                         onClick={() => setExpandedOrderKey((prev) => (prev === order.orderKey ? '' : order.orderKey))}
-                        className="w-full text-left flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3 mb-3"
+                        className="w-full text-left border-b pb-3 mb-3"
                       >
-                        <div>
-                          <p className="text-sm text-gray-700">
-                            Order ID: <span className="font-medium">{order.orderId}</span>
-                          </p>
-                          <p className="text-sm text-gray-600">Date: {order.date} · {order.time}</p>
-                          <p className="text-sm text-gray-600">Payment: {order.paymentMethod}</p>
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                          <div className="flex gap-3 items-start">
+                            <div className="flex -space-x-2 pt-1">
+                              {order.items.slice(0, 3).map((item, idx) => (
+                                <img
+                                  key={`${item._id}-${idx}`}
+                                  src={item.image}
+                                  alt={item.name}
+                                  className="w-10 h-10 rounded-full border-2 border-white object-cover bg-white"
+                                />
+                              ))}
+                            </div>
+
+                            <div>
+                              <p className="text-sm text-gray-700">
+                                Order ID: <span className="font-medium">{order.orderId}</span>
+                              </p>
+                              <p className="text-sm text-gray-600">{order.date} · {order.time}</p>
+                              <p className="text-sm text-gray-600">Payment: {order.paymentMethod}</p>
+                              <p className="text-sm text-gray-600">
+                                Items: {order.items.length} · Status: {getOrderStatus(order.placedAt, currentStatusTime + statusTick) || order.status}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-sm text-gray-700 text-right">
+                            <p>
+                              Total: <span className="font-semibold">{currency}{order.totalAmount}</span>
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {expandedOrderKey === order.orderKey ? 'Hide options' : 'Tap to view options'}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-700 text-right">
-                          Total: <span className="font-semibold">{currency}{order.totalAmount}</span>
-                          <p className="text-xs text-gray-500 mt-1">Click to view options</p>
+
+                        <div className="mt-3 text-sm text-gray-600">
+                          <p>
+                            {order.deliveryInfo?.firstName} {order.deliveryInfo?.lastName} · {order.deliveryInfo?.phone}
+                          </p>
+                          <p className="truncate">
+                            {order.deliveryInfo?.street}, {order.deliveryInfo?.city}, {order.deliveryInfo?.state}
+                          </p>
                         </div>
                       </button>
 
@@ -609,6 +649,14 @@ const Profile = () => {
                                 Pay Online Instead
                               </button>
                             )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleCancelOrder(order)}
+                              className="px-4 py-2 border border-red-300 text-red-600 rounded text-sm hover:bg-red-50"
+                            >
+                              Cancel Order
+                            </button>
                           </div>
                         </>
                       )}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
@@ -9,6 +9,16 @@ const Login = () => {
     email: '',
     password: '',
   });
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('isCustomerLoggedIn') === '1') {
+        navigate('/profile');
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

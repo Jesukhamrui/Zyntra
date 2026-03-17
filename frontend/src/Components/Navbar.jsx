@@ -1,11 +1,20 @@
 import { Link, NavLink } from 'react-router-dom';
 import { assets } from '../assets/assets';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { ShopContext } from '../Context/ShopContext';
 
 const Navbar = () => {
   const [visible, setVisible] = useState(false);
+  const [isCustomerLoggedIn, setIsCustomerLoggedIn] = useState(false);
   const { setShowSearch, getCartCount } = useContext(ShopContext);
+
+  useEffect(() => {
+    try {
+      setIsCustomerLoggedIn(localStorage.getItem('isCustomerLoggedIn') === '1');
+    } catch {
+      setIsCustomerLoggedIn(false);
+    }
+  }, []);
 
   return (
     <div className="flex items-center justify-between py-5 font-medium">
@@ -42,7 +51,7 @@ const Navbar = () => {
           className="w-5 cursor-pointer "
         />
         <div className="group relative">
-          <Link to="/login">
+          <Link to={isCustomerLoggedIn ? '/profile' : '/login'}>
             <img
               src={assets.profile_icon}
               alt=""

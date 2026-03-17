@@ -7,6 +7,7 @@ import Contact from './Pages/Contact';
 import Product from './Pages/Product';
 import Cart from './Pages/Cart';
 import Login from './Pages/Login';
+import Profile from './Pages/Profile';
 import PlaceOrder from './Pages/PlaceOrder';
 import Orders from './Pages/Orders';
 import Navbar from './Components/Navbar';
@@ -36,6 +37,7 @@ function App() {
         <Route path="/product/:productId" element={<Product />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route
           path="/admin"

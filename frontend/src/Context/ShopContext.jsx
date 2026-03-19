@@ -225,7 +225,7 @@ const ShopContextProvider = ({ children }) => {
             orderId,
             deliveryInfo,
             paymentMethod,
-            status: 'Order Confirmed',
+            status: 'Confirmed',
           });
         }
       }
@@ -300,6 +300,30 @@ const ShopContextProvider = ({ children }) => {
     }
   };
 
+  const updateOrderStatus = (orderId, orderDate, orderTime, status) => {
+    const updatedOrders = orders.map((order) => {
+      const matchesByOrderId = order.orderId && order.orderId === orderId;
+      const matchesByDateTime = !order.orderId && order.date === orderDate && order.time === orderTime;
+
+      if (!matchesByOrderId && !matchesByDateTime) {
+        return order;
+      }
+
+      return {
+        ...order,
+        status,
+      };
+    });
+
+    setOrders(updatedOrders);
+
+    try {
+      localStorage.setItem('orders', JSON.stringify(updatedOrders));
+    } catch (error) {
+      console.log('Failed to update order status', error);
+    }
+  };
+
   const cancelOrder = (orderId, orderDate, orderTime) => {
     const updatedOrders = orders.filter((order) => {
       const matchesByOrderId = order.orderId && order.orderId === orderId;
@@ -346,10 +370,9 @@ const ShopContextProvider = ({ children }) => {
     const numericPlacedAt = Number(placedAtValue) || fallbackTime;
     const elapsedMinutes = (currentTime - numericPlacedAt) / (1000 * 60);
 
-    if (elapsedMinutes < 1) return 'Order Confirmed';
+    if (elapsedMinutes < 1) return 'Confirmed';
     if (elapsedMinutes < 2) return 'Packed';
     if (elapsedMinutes < 3) return 'Shipped';
-    if (elapsedMinutes < 5) return 'Out for Delivery';
     return 'Delivered';
   };
 
@@ -392,6 +415,7 @@ const ShopContextProvider = ({ children }) => {
     addOrder,
     updateOrderDeliveryInfo,
     updateOrderPaymentMethod,
+    updateOrderStatus,
     cancelOrder,
     orders,
     navigate,

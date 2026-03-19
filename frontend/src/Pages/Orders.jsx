@@ -4,8 +4,17 @@ import Title from '../Components/Title';
 import { toast } from 'react-toastify';
 
 const Orders = () => {
-  const { orders, currency, getOrderStatus, updateOrderDeliveryInfo, navigate } = useContext(ShopContext);
+  const {
+    orders,
+    currency,
+    getOrderStatus,
+    updateOrderDeliveryInfo,
+    updateOrderPaymentMethod,
+    cancelOrder,
+    navigate,
+  } = useContext(ShopContext);
   const [editingOrderKey, setEditingOrderKey] = useState('');
+  const [paymentDrafts, setPaymentDrafts] = useState({});
   const [editForm, setEditForm] = useState({
     phone: '',
     street: '',
@@ -21,6 +30,7 @@ const Orders = () => {
     orders.forEach((item, index) => {
       const key = item.orderId || `${item.date}-${item.time}-${index}`;
       if (!map.has(key)) {
+        const normalizedStatus = item.status === 'Order Confirmed' ? 'Confirmed' : item.status;
         map.set(key, {
           key,
           orderId: item.orderId || 'N/A',
@@ -28,7 +38,7 @@ const Orders = () => {
           time: item.time,
           placedAt: Number(item.placedAt) || Date.now(),
           paymentMethod: item.paymentMethod,
-          status: item.status,
+          status: normalizedStatus || 'Confirmed',
           deliveryInfo: item.deliveryInfo,
           items: [],
           totalAmount: 0,
@@ -104,6 +114,35 @@ const Orders = () => {
     setEditingOrderKey('');
   };
 
+  const handlePaymentDraftChange = (orderKey, value) => {
+    setPaymentDrafts((prev) => ({
+      ...prev,
+      [orderKey]: value,
+    }));
+  };
+
+  const handleUpdatePaymentMethod = (order) => {
+    const selectedPaymentMethod = paymentDrafts[order.key] || order.paymentMethod;
+
+    if (!selectedPaymentMethod) {
+      toast.error('Please select a payment method');
+      return;
+    }
+
+    updateOrderPaymentMethod(order.orderId, order.date, order.time, selectedPaymentMethod);
+    toast.success('Payment method updated');
+  };
+
+  const handleCancelOrder = (order) => {
+    const isConfirmed = window.confirm('Are you sure you want to cancel this order?');
+    if (!isConfirmed) {
+      return;
+    }
+
+    cancelOrder(order.orderId, order.date, order.time);
+    toast.success('Order cancelled successfully');
+  };
+
   if (groupedOrders.length === 0) {
     return (
       <div className="border-t pt-16 min-h-[70vh]">
@@ -132,7 +171,9 @@ const Orders = () => {
       <div className="space-y-5">
         {groupedOrders.map((order) => {
           const liveStatus = getOrderStatus(order.placedAt);
+          const displayStatus = order.status || liveStatus;
           const isEditing = editingOrderKey === order.key;
+          const selectedPaymentMethod = paymentDrafts[order.key] || order.paymentMethod;
 
           return (
             <div key={order.key} className="border rounded-xl p-4">
@@ -143,7 +184,7 @@ const Orders = () => {
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  <span className="font-medium">{liveStatus}</span>
+                  <span className="font-medium">{displayStatus}</span>
                 </div>
               </div>
 
@@ -219,7 +260,25 @@ const Orders = () => {
                 <p>Total: {currency}{order.totalAmount}</p>
               </div>
 
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedPaymentMethod}
+                    onChange={(event) => handlePaymentDraftChange(order.key, event.target.value)}
+                    className="px-3 py-2 border rounded text-sm"
+                  >
+                    <option value="cod">Cash on Delivery</option>
+                    <option value="phonepe">PhonePe</option>
+                    <option value="razorpay">Paytm</option>
+                  </select>
+                  <button
+                    onClick={() => handleUpdatePaymentMethod(order)}
+                    className="px-4 py-2 border rounded text-sm hover:bg-gray-50"
+                  >
+                    Update Payment
+                  </button>
+                </div>
+
                 {!isEditing ? (
                   <button
                     onClick={() => startEdit(order)}
@@ -243,6 +302,13 @@ const Orders = () => {
                     </button>
                   </>
                 )}
+
+                <button
+                  onClick={() => handleCancelOrder(order)}
+                  className="px-4 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                >
+                  Cancel Order
+                </button>
               </div>
             </div>
           );

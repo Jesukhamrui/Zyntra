@@ -1,9 +1,18 @@
-import { useContext, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { ShopContext } from '../../Context/ShopContext.jsx';
 import { toast } from 'react-toastify';
 
 const AdminDashboard = () => {
-  const { products, orders, logoutAdmin, addProduct, updateProduct, deleteProduct, currency } = useContext(ShopContext);
+  const {
+    products,
+    orders,
+    logoutAdmin,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    updateOrderStatus,
+    currency,
+  } = useContext(ShopContext);
   const [activeTab, setActiveTab] = useState('products'); // 'products', 'orders', 'add'
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({
@@ -20,6 +29,41 @@ const AdminDashboard = () => {
   const categories = ['Men', 'Women', 'Kids'];
   const subCategories = ['Topwear', 'Bottomwear', 'Winterwear'];
   const allSizes = ['S', 'M', 'L', 'XL', 'XXL'];
+  const statusOptions = ['Confirmed', 'Packed', 'Shipped', 'Delivered'];
+
+  const groupedOrders = useMemo(() => {
+    const orderMap = new Map();
+
+    orders.forEach((item, index) => {
+      const key = item.orderId || `${item.date}-${item.time}-${index}`;
+      if (!orderMap.has(key)) {
+        const normalizedStatus = item.status === 'Order Confirmed' ? 'Confirmed' : item.status;
+
+        orderMap.set(key, {
+          key,
+          orderId: item.orderId || 'N/A',
+          date: item.date || 'N/A',
+          time: item.time || 'N/A',
+          status: normalizedStatus || 'Confirmed',
+          paymentMethod: item.paymentMethod || 'N/A',
+          deliveryInfo: item.deliveryInfo,
+          items: [],
+          totalAmount: 0,
+        });
+      }
+
+      const orderGroup = orderMap.get(key);
+      orderGroup.items.push(item);
+      orderGroup.totalAmount += (item.price || 0) * (item.quantity || 0);
+    });
+
+    return Array.from(orderMap.values()).reverse();
+  }, [orders]);
+
+  const handleOrderStatusChange = (orderGroup, status) => {
+    updateOrderStatus(orderGroup.orderId, orderGroup.date, orderGroup.time, status);
+    toast.success(`Order status updated to ${status}`);
+  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -131,7 +175,7 @@ const AdminDashboard = () => {
 
         <div className="bg-white p-6 rounded shadow">
           <h2 className="text-gray-600 text-sm font-medium mb-2">Total Orders</h2>
-          <p className="text-3xl font-bold text-gray-900">{orders ? orders.length : 0}</p>
+          <p className="text-3xl font-bold text-gray-900">{groupedOrders.length}</p>
         </div>
 
         <div className="bg-white p-6 rounded shadow">
@@ -265,39 +309,53 @@ const AdminDashboard = () => {
                   <thead>
                     <tr className="bg-gray-100">
                       <th className="border p-2 text-left">Order ID</th>
-                      <th className="border p-2 text-left">Product</th>
+                      <th className="border p-2 text-left">Items</th>
                       <th className="border p-2 text-left">Customer</th>
                       <th className="border p-2 text-left">Date</th>
+                      <th className="border p-2 text-left">Payment</th>
                       <th className="border p-2 text-left">Status</th>
                       <th className="border p-2 text-left">Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {orders && orders.length > 0 ? (
-                      orders.map((order, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="border p-2">#{index + 1}</td>
-                          <td className="border p-2">{order.name || 'N/A'}</td>
+                    {groupedOrders.length > 0 ? (
+                      groupedOrders.map((orderGroup) => (
+                        <tr key={orderGroup.key} className="hover:bg-gray-50">
+                          <td className="border p-2">{orderGroup.orderId}</td>
                           <td className="border p-2">
-                            {order.deliveryInfo
-                              ? `${order.deliveryInfo.firstName} ${order.deliveryInfo.lastName}`
+                            {orderGroup.items.length} item{orderGroup.items.length > 1 ? 's' : ''}
+                          </td>
+                          <td className="border p-2">
+                            {orderGroup.deliveryInfo
+                              ? `${orderGroup.deliveryInfo.firstName} ${orderGroup.deliveryInfo.lastName}`
                               : 'N/A'}
                           </td>
-                          <td className="border p-2">{order.date || 'N/A'}</td>
                           <td className="border p-2">
-                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-sm">
-                              {order.status || 'Pending'}
-                            </span>
+                            {orderGroup.date} · {orderGroup.time}
+                          </td>
+                          <td className="border p-2">{orderGroup.paymentMethod}</td>
+                          <td className="border p-2">
+                            <select
+                              value={orderGroup.status}
+                              onChange={(event) => handleOrderStatusChange(orderGroup, event.target.value)}
+                              className="border rounded px-2 py-1 text-sm"
+                            >
+                              {statusOptions.map((statusOption) => (
+                                <option key={statusOption} value={statusOption}>
+                                  {statusOption}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                           <td className="border p-2 font-semibold">
                             {currency}
-                            {(order.price || 0) * (order.quantity || 1)}
+                            {orderGroup.totalAmount}
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="6" className="border p-4 text-center text-gray-500">
+                        <td colSpan="7" className="border p-4 text-center text-gray-500">
                           No orders found
                         </td>
                       </tr>

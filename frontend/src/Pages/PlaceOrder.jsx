@@ -5,6 +5,60 @@ import Title from '../Components/Title';
 import { ShopContext } from '../Context/ShopContext';
 import { toast } from 'react-toastify';
 
+const ZIPCODE_ADDRESS_OVERRIDES = {
+  '700124': {
+    city: 'Barasat',
+    state: 'West Bengal',
+    country: 'India',
+  },
+};
+
+const normalizeZipcode = (value = '') => String(value || '').replace(/\D/g, '').slice(0, 6);
+
+const getZipcodeOverride = (zipcode = '') => ZIPCODE_ADDRESS_OVERRIDES[normalizeZipcode(zipcode)] || null;
+
+const applyZipcodeOverride = (addressData = {}) => {
+  const normalizedZip = normalizeZipcode(addressData.zipcode || '');
+  const override = getZipcodeOverride(normalizedZip);
+
+  if (!override) return { ...addressData, zipcode: normalizedZip };
+
+  return {
+    ...addressData,
+    zipcode: normalizedZip,
+    city: override.city,
+    state: override.state,
+    country: override.country || addressData.country,
+  };
+};
+
+const fetchAddressFromLocation = async (latitude, longitude) => {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch address details');
+  }
+
+  const data = await response.json();
+  const address = data.address || {};
+
+  const street = [address.house_number, address.road, address.street].filter(Boolean).join(' ').trim();
+  const city = address.city || address.town || address.village || address.county || '';
+  const postcode = normalizeZipcode(address.postcode || '');
+  const state = address.state || '';
+  const country = address.country || 'India';
+
+  return {
+    street,
+    city,
+    state,
+    postcode,
+    country,
+  };
+};
+
 const PlaceOrder = () => {
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
@@ -22,6 +76,7 @@ const PlaceOrder = () => {
   });
 
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [locationHint, setLocationHint] = useState('');
   const { navigate, addOrder, getCartCount } = useContext(ShopContext);
 
   const handleInputChange = (e) => {
@@ -34,10 +89,27 @@ const PlaceOrder = () => {
           ? value.replace(/\D/g, '').slice(0, 10)
           : value;
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: sanitizedValue,
-    }));
+    setFormData((prev) => {
+      const nextData = {
+        ...prev,
+        [name]: sanitizedValue,
+      };
+      return applyZipcodeOverride(nextData);
+    });
+
+    if (name === 'zipcode') {
+      const override = getZipcodeOverride(sanitizedValue);
+      if (override) {
+        setLocationHint(`Using PIN ${sanitizedValue}: ${override.city}, ${override.state}`);
+        return;
+      }
+
+      if (/^\d{6}$/.test(sanitizedValue)) {
+        setLocationHint(`Verified PIN ${sanitizedValue}`);
+      } else {
+        setLocationHint('');
+      }
+    }
   };
 
   const validateForm = () => {
@@ -104,42 +176,46 @@ const PlaceOrder = () => {
         const { latitude, longitude } = position.coords;
 
         try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+          const address = await fetchAddressFromLocation(latitude, longitude);
+
+          setFormData((prev) =>
+            applyZipcodeOverride({
+              ...prev,
+              street: address.street || prev.street,
+              city: address.city || prev.city,
+              state: address.state || prev.state,
+              country: address.country || prev.country,
+              zipcode: address.postcode || prev.zipcode,
+            })
           );
 
-          if (!response.ok) {
-            throw new Error('Failed to fetch location details');
+          const override = getZipcodeOverride(address.postcode);
+          if (override) {
+            setLocationHint(`Using PIN ${address.postcode}: ${override.city}, ${override.state}`);
+          } else if (address.city && address.state) {
+            setLocationHint(`Detected: ${address.city}, ${address.state}`);
+          } else {
+            setLocationHint('');
           }
 
-          const data = await response.json();
-          const address = data.address || {};
-
-          const street = [address.house_number, address.road].filter(Boolean).join(' ').trim();
-          const city = address.city || address.town || address.village || address.county || '';
-          const postcode = (address.postcode || '').replace(/\D/g, '').slice(0, 6);
-
-          setFormData((prev) => ({
-            ...prev,
-            street: street || prev.street,
-            city: city || prev.city,
-            state: address.state || prev.state,
-            country: address.country || prev.country,
-            zipcode: postcode || prev.zipcode,
-          }));
-
-          toast.success('Location fetched. Please verify and complete your details.');
-        } catch {
-          toast.error('Unable to fetch address details from current location');
+          toast.success('Location fetched successfully. Please verify and complete your details.');
+        } catch (error) {
+          console.error('Location error:', error);
+          toast.error(error.message || 'Unable to fetch address from current location');
         } finally {
           setIsFetchingLocation(false);
         }
       },
-      () => {
-        toast.error('Unable to access your current location');
+      (error) => {
+        const errorMessages = {
+          1: 'Location permission denied. Please enable location access in browser settings.',
+          2: 'Location service unavailable. Please try again.',
+          3: 'Location request timed out. Please try again.',
+        };
+        toast.error(errorMessages[error.code] || 'Unable to access your current location');
         setIsFetchingLocation(false);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -262,6 +338,11 @@ const PlaceOrder = () => {
         <div className="text-xl sm:text-2xl my-3 ">
           <Title text1={'DELIVERY'} text2={'INFORMATION'} />
         </div>
+        {locationHint && (
+          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {locationHint}
+          </div>
+        )}
         <button
           type="button"
           onClick={handleUseCurrentLocation}

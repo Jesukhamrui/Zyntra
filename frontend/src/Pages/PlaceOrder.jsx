@@ -34,11 +34,16 @@ const applyZipcodeOverride = (addressData = {}) => {
 
 const fetchAddressFromLocation = async (latitude, longitude) => {
   const response = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+    {
+      headers: {
+        'User-Agent': 'Zyntra-Frontend/1.0',
+      },
+    }
   );
 
   if (!response.ok) {
-    throw new Error('Failed to fetch address details');
+    throw new Error(`HTTP Error: ${response.status} - Failed to fetch address details`);
   }
 
   const data = await response.json();

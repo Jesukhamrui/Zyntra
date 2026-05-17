@@ -2,7 +2,9 @@ import { Navigate } from 'react-router-dom';
 
 const CustomerRoute = ({ children }) => {
   try {
-    const isLoggedIn = localStorage.getItem('isCustomerLoggedIn') === '1';
+    const isLoggedIn =
+      localStorage.getItem('isCustomerLoggedIn') === '1' ||
+      Boolean(localStorage.getItem('customerToken'));
     if (!isLoggedIn) {
       return <Navigate to="/login" replace />;
     }

@@ -223,6 +223,7 @@ const Profile = () => {
   const handleLogout = () => {
     try {
       localStorage.removeItem('isCustomerLoggedIn');
+      localStorage.removeItem('customerToken');
     } catch {
       // ignore storage errors
     }

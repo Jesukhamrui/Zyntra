@@ -242,3 +242,47 @@ If you want, I can also:
 
 Generated/updated by your assistant.
 
+## Features (Frontend)
+
+- Authentication UI: signup/login forms, validation, toast notifications.
+- Session management: stores JWT in `localStorage`, automatic redirect to profile.
+- Protected routes: `CustomerRoute` guards pages for authenticated users.
+- Order flow: cart checkout, `PlaceOrder` with address collection and order submission.
+- Location services: GPS lookup with IP fallback and reverse geocoding.
+- Payments: UPI ID validation and Cash-on-Delivery support.
+- Responsive design using TailwindCSS and accessible components.
+
+## Backend Integration
+
+- The frontend calls a small Express.js auth backend under `/api`.
+- Vite is configured to proxy `/api` to `http://localhost:4000` during development (see `vite.config.js`).
+- API base URL can be overridden via `VITE_API_BASE_URL` environment variable.
+
+## How to run (full-stack locally)
+
+1. Start backend (from the repository root):
+
+```powershell
+cd backend
+npm install
+npm run dev
+```
+
+2. Start frontend (in a separate terminal):
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will proxy API calls to the backend at `http://localhost:4000`.
+
+## API Reference (brief)
+
+- `POST /api/auth/signup` — Create account. Request: `{ name, email, password }`.
+- `POST /api/auth/login` — Authenticate. Request: `{ email, password }`.
+- `GET /api/auth/me` — Get profile. Requires `Authorization: Bearer <token>`.
+
+For full backend documentation see [backend/README.md](../backend/README.md).
+

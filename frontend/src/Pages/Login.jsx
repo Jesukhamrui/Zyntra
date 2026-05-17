@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const Login = () => {
   const navigate = useNavigate();
   const [currentState, setCurrentState] = useState('Sign Up');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -12,7 +16,10 @@ const Login = () => {
 
   useEffect(() => {
     try {
-      if (localStorage.getItem('isCustomerLoggedIn') === '1') {
+      if (
+        localStorage.getItem('isCustomerLoggedIn') === '1' ||
+        Boolean(localStorage.getItem('customerToken'))
+      ) {
         navigate('/profile');
       }
     } catch {
@@ -28,25 +35,70 @@ const Login = () => {
     }));
   };
 
-  const onSubmmitHandler = (e) => {
+  const onSubmmitHandler = async (e) => {
     e.preventDefault();
 
-    const profileData = {
-      name: formData.name.trim() || 'Guest User',
-      email: formData.email.trim(),
-      location: 'Bangalore, India',
-      nationality: 'Indian',
-      dateOfBirth: '01 Jan 1998',
-    };
+    if (isSubmitting) return;
 
-    try {
-      localStorage.setItem('isCustomerLoggedIn', '1');
-      localStorage.setItem('customerProfile', JSON.stringify(profileData));
-    } catch {
-      // ignore storage errors
+    if (currentState === 'Sign Up' && formData.password.trim().length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      return;
     }
 
-    navigate('/profile');
+    setIsSubmitting(true);
+
+    const endpoint = currentState === 'Sign Up' ? '/auth/signup' : '/auth/login';
+    const payload =
+      currentState === 'Sign Up'
+        ? {
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            password: formData.password,
+          }
+        : {
+            email: formData.email.trim(),
+            password: formData.password,
+          };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        toast.error(data.message || 'Authentication failed');
+        return;
+      }
+
+      const profileData = {
+        name: data.user?.name || formData.name.trim() || 'Guest User',
+        email: data.user?.email || formData.email.trim(),
+        location: data.user?.location || 'Bangalore, India',
+        nationality: data.user?.nationality || 'Indian',
+        dateOfBirth: data.user?.dateOfBirth || '01 Jan 1998',
+      };
+
+      try {
+        localStorage.setItem('isCustomerLoggedIn', '1');
+        localStorage.setItem('customerToken', data.token || '');
+        localStorage.setItem('customerProfile', JSON.stringify(profileData));
+      } catch {
+        // ignore storage errors
+      }
+
+      toast.success(currentState === 'Sign Up' ? 'Account created successfully' : 'Login successful');
+      navigate('/profile');
+    } catch (error) {
+      toast.error(error.message || 'Unable to connect to auth server');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -110,7 +162,7 @@ const Login = () => {
           )}
         </div>
         <button className="w-1/2 m-auto bg-black text-white px-8 py-2 mt-4 ">
-          {currentState === 'Login' ? 'Sign In' : 'Sign Up'}
+          {isSubmitting ? 'PLEASE WAIT...' : currentState === 'Login' ? 'Sign In' : 'Sign Up'}
         </button>
       </div>
     </form>

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "0ec8aaa1-53ac-47b0-b5e7-3f1ddb609024",
+    "name": "Test User",
+    "email": "testuser@example.com",
+    "passwordHash": "$2a$10$pcK7GmsFIswjnlf0VEZt6OPCYxoHZddNA.qbXG5cvuzZlazfHpNkq",
+    "createdAt": "2026-04-21T15:35:43.753Z",
+    "location": "Bangalore, India",
+    "nationality": "Indian",
+    "dateOfBirth": "01 Jan 1998"
+  },
+  {
+    "id": "ae74b075-4afe-4654-a5bb-f33a6a39cb77",
+    "name": "jesu",
+    "email": "j@gmail.com",
+    "passwordHash": "$2a$10$cHebFNN07poQLiTTw59pSe6dmpzfbv5QVwGuCMEQTaATocNR00Noa",
+    "createdAt": "2026-04-21T15:56:01.368Z",
+    "location": "Bangalore, India",
+    "nationality": "Indian",
+    "dateOfBirth": "01 Jan 1998"
+  },
+  {
+    "id": "ab852734-f2ae-43b1-90f1-9633960078bf",
+    "name": "RJ",
+    "email": "rj@gmail.com",
+    "passwordHash": "$2a$10$kjh/bzgZ1wNLNbPflLmy7.Z7vL969qMxNboYDDlwbC3/jo8p1AMlO",
+    "createdAt": "2026-04-21T15:58:38.155Z",
+    "location": "Bangalore, India",
+    "nationality": "Indian",
+    "dateOfBirth": "01 Jan 1998"
+  },
+  {
+    "id": "09a263e6-73a6-4302-938a-5fc2e7522c69",
+    "name": "jesu",
+    "email": "jk@gmail.com",
+    "passwordHash": "$2a$10$mOLg80xdZXSdOCL99r37n.D2fudD/PQHNtD4LzWt7PaYWMSJC2vI2",
+    "createdAt": "2026-05-17T13:36:41.483Z",
+    "location": "Bangalore, India",
+    "nationality": "Indian",
+    "dateOfBirth": "01 Jan 1998"
+  }
+]

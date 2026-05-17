@@ -1,6 +1,7 @@
 import { useContext, useState } from 'react';
 import { assets } from '../assets/assets';
 import CartTotal from '../Components/CartTotal';
+import ProductItem from '../Components/ProductItem';
 import Title from '../Components/Title';
 import { ShopContext } from '../Context/ShopContext';
 import { toast } from 'react-toastify';
@@ -32,14 +33,33 @@ const applyZipcodeOverride = (addressData = {}) => {
   };
 };
 
+const getCurrentPosition = (options) =>
+  new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+
+const requestCurrentPositionWithFallback = async () => {
+  const optionsList = [
+    { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 },
+    { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 },
+  ];
+
+  let lastError;
+
+  for (const options of optionsList) {
+    try {
+      return await getCurrentPosition(options);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Unable to access your current location');
+};
+
 const fetchAddressFromLocation = async (latitude, longitude) => {
   const response = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-    {
-      headers: {
-        'User-Agent': 'Zyntra-Frontend/1.0',
-      },
-    }
+    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
   );
 
   if (!response.ok) {
@@ -64,10 +84,38 @@ const fetchAddressFromLocation = async (latitude, longitude) => {
   };
 };
 
+const fetchApproximateAddressFromIP = async () => {
+  const response = await fetch('https://ipapi.co/json/');
+
+  if (!response.ok) {
+    throw new Error('Unable to fetch approximate location from network');
+  }
+
+  const data = await response.json();
+
+  return {
+    street: '',
+    city: data.city || '',
+    state: data.region || '',
+    postcode: normalizeZipcode(data.postal || ''),
+    country: data.country_name || 'India',
+  };
+};
+
+const getLocationPrecisionLabel = (accuracyInMeters) => {
+  if (!Number.isFinite(accuracyInMeters)) return 'Exact GPS';
+  if (accuracyInMeters <= 100) return 'Exact GPS';
+  return `Approximate GPS (${Math.round(accuracyInMeters)}m)`;
+};
+
+const UPI_ID_REGEX = /^[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,}$/;
+
 const PlaceOrder = () => {
   const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [upiId, setUpiId] = useState('');
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [locationPrecision, setLocationPrecision] = useState('');
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -81,8 +129,40 @@ const PlaceOrder = () => {
   });
 
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [recommendedProducts, setRecommendedProducts] = useState([]);
   const [locationHint, setLocationHint] = useState('');
-  const { navigate, addOrder, getCartCount } = useContext(ShopContext);
+  const { navigate, addOrder, getCartCount, products, cartItems } = useContext(ShopContext);
+  const requiresUpiId = paymentMethod === 'phonepe' || paymentMethod === 'razorpay';
+
+  const buildRecommendedProducts = () => {
+    const orderedProductIds = new Set(
+      Object.entries(cartItems)
+        .filter(([, sizes]) => Object.values(sizes || {}).some((quantity) => Number(quantity) > 0))
+        .map(([productId]) => productId)
+    );
+
+    const orderedCategories = new Set(
+      products.filter((product) => orderedProductIds.has(product._id)).map((product) => product.category)
+    );
+
+    const availableProducts = products.filter((product) => !orderedProductIds.has(product._id));
+    const sameCategoryProducts = availableProducts.filter((product) => orderedCategories.has(product.category));
+    const bestsellerProducts = availableProducts.filter((product) => product.bestseller);
+
+    const prioritized = [...sameCategoryProducts, ...bestsellerProducts, ...availableProducts];
+
+    const uniqueProducts = [];
+    const addedIds = new Set();
+    for (const product of prioritized) {
+      if (!addedIds.has(product._id)) {
+        uniqueProducts.push(product);
+        addedIds.add(product._id);
+      }
+      if (uniqueProducts.length === 8) break;
+    }
+
+    return uniqueProducts;
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -106,13 +186,16 @@ const PlaceOrder = () => {
       const override = getZipcodeOverride(sanitizedValue);
       if (override) {
         setLocationHint(`Using PIN ${sanitizedValue}: ${override.city}, ${override.state}`);
+        setLocationPrecision('');
         return;
       }
 
       if (/^\d{6}$/.test(sanitizedValue)) {
         setLocationHint(`Verified PIN ${sanitizedValue}`);
+        setLocationPrecision('');
       } else {
         setLocationHint('');
+        setLocationPrecision('');
       }
     }
   };
@@ -168,60 +251,106 @@ const PlaceOrder = () => {
     return true;
   };
 
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = async () => {
     if (!navigator.geolocation) {
       toast.error('Geolocation is not supported in this browser');
       return;
     }
 
+    if (!window.isSecureContext) {
+      toast.error('Current location works only on HTTPS (or localhost). Please open the site securely.');
+      return;
+    }
+
     setIsFetchingLocation(true);
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
+    try {
+      const position = await requestCurrentPositionWithFallback();
+      const { latitude, longitude, accuracy } = position.coords;
+      const precisionLabel = getLocationPrecisionLabel(accuracy);
 
+      try {
+        const address = await fetchAddressFromLocation(latitude, longitude);
+
+        setFormData((prev) =>
+          applyZipcodeOverride({
+            ...prev,
+            street: address.street || prev.street,
+            city: address.city || prev.city,
+            state: address.state || prev.state,
+            country: address.country || prev.country,
+            zipcode: address.postcode || prev.zipcode,
+          })
+        );
+
+        const override = getZipcodeOverride(address.postcode);
+        if (override) {
+          setLocationHint(`Using PIN ${address.postcode}: ${override.city}, ${override.state}`);
+          setLocationPrecision(precisionLabel);
+        } else if (address.city && address.state) {
+          setLocationHint(`Detected: ${address.city}, ${address.state}`);
+          setLocationPrecision(precisionLabel);
+        } else {
+          setLocationHint('Location captured. Please complete address details manually.');
+          setLocationPrecision(precisionLabel);
+        }
+
+        if (accuracy > 100) {
+          toast.info(`Your device reported approximate location accuracy of about ${Math.round(accuracy)}m.`);
+        }
+
+        toast.success('Location fetched successfully. Please verify and complete your details.');
+      } catch (error) {
+        console.error('Reverse geocoding error:', error);
+        setLocationHint('Location captured, but address lookup failed. Please fill the fields manually.');
+        toast.error('Location captured, but address details could not be fetched.');
+      }
+    } catch (error) {
+      if (error.code === 1) {
+        toast.error('Location permission denied. Please enable location access in browser settings.');
+      } else {
         try {
-          const address = await fetchAddressFromLocation(latitude, longitude);
+          const approxAddress = await fetchApproximateAddressFromIP();
 
           setFormData((prev) =>
             applyZipcodeOverride({
               ...prev,
-              street: address.street || prev.street,
-              city: address.city || prev.city,
-              state: address.state || prev.state,
-              country: address.country || prev.country,
-              zipcode: address.postcode || prev.zipcode,
+              city: approxAddress.city || prev.city,
+              state: approxAddress.state || prev.state,
+              country: approxAddress.country || prev.country,
+              zipcode: approxAddress.postcode || prev.zipcode,
             })
           );
 
-          const override = getZipcodeOverride(address.postcode);
+          const override = getZipcodeOverride(approxAddress.postcode);
           if (override) {
-            setLocationHint(`Using PIN ${address.postcode}: ${override.city}, ${override.state}`);
-          } else if (address.city && address.state) {
-            setLocationHint(`Detected: ${address.city}, ${address.state}`);
+            setLocationHint(
+              `Approximate location: PIN ${approxAddress.postcode} (${override.city}, ${override.state}). Please verify.`
+            );
+            setLocationPrecision('Approximate Network');
+          } else if (approxAddress.city && approxAddress.state) {
+            setLocationHint(
+              `Approximate location: ${approxAddress.city}, ${approxAddress.state}. Please verify manually.`
+            );
+            setLocationPrecision('Approximate Network');
           } else {
-            setLocationHint('');
+            setLocationHint('Unable to detect exact location. Please fill delivery address manually.');
+            setLocationPrecision('Approximate Network');
           }
 
-          toast.success('Location fetched successfully. Please verify and complete your details.');
-        } catch (error) {
-          console.error('Location error:', error);
-          toast.error(error.message || 'Unable to fetch address from current location');
-        } finally {
-          setIsFetchingLocation(false);
+          toast.warning('Precise location unavailable. Filled approximate location from network.');
+        } catch (fallbackError) {
+          console.error('Fallback location error:', fallbackError);
+          const errorMessages = {
+            2: 'Location service unavailable. Turn on device location services, then try again.',
+            3: 'Location request timed out. Please try again in an open area or with better signal.',
+          };
+          toast.error(errorMessages[error.code] || 'Unable to access your current location');
         }
-      },
-      (error) => {
-        const errorMessages = {
-          1: 'Location permission denied. Please enable location access in browser settings.',
-          2: 'Location service unavailable. Please try again.',
-          3: 'Location request timed out. Please try again.',
-        };
-        toast.error(errorMessages[error.code] || 'Unable to access your current location');
-        setIsFetchingLocation(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
+      }
+    } finally {
+      setIsFetchingLocation(false);
+    }
   };
 
   const handlePlaceOrder = () => {
@@ -233,6 +362,22 @@ const PlaceOrder = () => {
     }
 
     if (validateForm()) {
+      const normalizedUpiId = upiId.trim().toLowerCase();
+
+      if (requiresUpiId) {
+        if (!UPI_ID_REGEX.test(normalizedUpiId)) {
+          toast.error('Enter a valid UPI ID (example: name@okhdfcbank)');
+          return;
+        }
+
+        const paymentLabel = paymentMethod === 'phonepe' ? 'PhonePe' : 'Paytm';
+        const isUpiConfirmed = window.confirm(`Confirm UPI payment with ${normalizedUpiId}?`);
+        if (!isUpiConfirmed) {
+          toast.info(`${paymentLabel} payment confirmation cancelled`);
+          return;
+        }
+      }
+
       setIsPlacingOrder(true);
       const deliveryInfo = {
         firstName: formData.firstName,
@@ -244,9 +389,14 @@ const PlaceOrder = () => {
         zipcode: formData.zipcode,
         country: formData.country,
         phone: formData.phone,
+        ...(requiresUpiId ? { upiId: normalizedUpiId } : {}),
       };
 
-      addOrder(deliveryInfo, paymentMethod);
+      const selectedPaymentMethod =
+        requiresUpiId ? `${paymentMethod} (${normalizedUpiId})` : paymentMethod;
+
+      setRecommendedProducts(buildRecommendedProducts());
+      addOrder(deliveryInfo, selectedPaymentMethod);
       setOrderPlaced(true);
       setIsPlacingOrder(false);
     }
@@ -262,73 +412,106 @@ const PlaceOrder = () => {
 
   if (orderPlaced) {
     return (
-      <div className="flex items-center justify-center min-h-[80vh] px-4">
-        <div className="text-center max-w-md">
-          <div className="mb-6 flex justify-center">
-            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+      <div className="min-h-[80vh] border-t bg-gradient-to-b from-white to-gray-50 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
+          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] items-start">
+            <div className="rounded-3xl border border-gray-200 bg-white p-6 sm:p-8 shadow-sm">
+              <div className="mb-6 flex justify-center lg:justify-start">
+                <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center">
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-center lg:text-left">
+                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
+                  Order Placed Successfully!
+                </h1>
+                <p className="text-gray-600 text-lg mb-2">Thank you for your order</p>
+                <p className="text-gray-500 text-sm mb-6">
+                  We&apos;ve received your order and will process it shortly. You can track your order status anytime.
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-2xl p-4 sm:p-5 mb-6 text-left">
+                <h3 className="font-semibold text-gray-900 mb-3">Order Details:</h3>
+                <div className="grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
+                  <p>
+                    <span className="font-medium text-gray-900">Name:</span> {formData.firstName}{' '}
+                    {formData.lastName}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-900">Email:</span> {formData.email}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-900">Phone:</span> {formData.phone}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-900">Address:</span> {formData.street},{' '}
+                    {formData.city}
+                  </p>
+                  <p className="sm:col-span-2">
+                    <span className="font-medium text-gray-900">Payment Method:</span>{' '}
+                    {paymentMethod === 'cod' ? 'Cash on Delivery' : paymentMethod}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <button
+                  onClick={handleViewOrders}
+                  className="flex-1 bg-black text-white px-6 py-3 rounded-xl font-medium hover:bg-gray-800 transition"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+                  View My Orders
+                </button>
+                <button
+                  onClick={handleContinueShopping}
+                  className="flex-1 border border-gray-300 text-gray-900 px-6 py-3 rounded-xl font-medium hover:bg-gray-100 transition"
+                >
+                  Continue Shopping
+                </button>
               </div>
             </div>
-          </div>
 
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
-            Order Placed Successfully!
-          </h1>
-          <p className="text-gray-600 text-lg mb-2">Thank you for your order</p>
-          <p className="text-gray-500 text-sm mb-8">
-            We&apos;ve received your order and will process it shortly. You can track your order status anytime.
-          </p>
+            <div className="rounded-3xl border border-gray-200 bg-white p-6 sm:p-8 shadow-sm">
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-900 text-xl">Highly Recommended For You</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Based on your latest order, explore more items from the store.
+                </p>
+              </div>
 
-          <div className="bg-gray-50 rounded-lg p-4 mb-8 text-left">
-            <h3 className="font-semibold text-gray-900 mb-3">Order Details:</h3>
-            <div className="space-y-2 text-sm text-gray-600">
-              <p>
-                <span className="font-medium text-gray-900">Name:</span> {formData.firstName}{' '}
-                {formData.lastName}
-              </p>
-              <p>
-                <span className="font-medium text-gray-900">Email:</span> {formData.email}
-              </p>
-              <p>
-                <span className="font-medium text-gray-900">Phone:</span> {formData.phone}
-              </p>
-              <p>
-                <span className="font-medium text-gray-900">Address:</span> {formData.street},{' '}
-                {formData.city}
-              </p>
-              <p>
-                <span className="font-medium text-gray-900">Payment Method:</span>{' '}
-                {paymentMethod === 'cod' ? 'Cash on Delivery' : paymentMethod}
-              </p>
+              {recommendedProducts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-4">
+                  {recommendedProducts.map((item) => (
+                    <ProductItem
+                      key={item._id}
+                      id={item._id}
+                      image={item.image}
+                      name={item.name}
+                      price={item.price}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-gray-300 p-6 text-sm text-gray-500">
+                  No recommendations available right now.
+                </div>
+              )}
             </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-            <button
-              onClick={handleViewOrders}
-              className="flex-1 bg-black text-white px-6 py-3 rounded font-medium hover:bg-gray-800 transition"
-            >
-              View My Orders
-            </button>
-            <button
-              onClick={handleContinueShopping}
-              className="flex-1 border border-gray-400 text-gray-900 px-6 py-3 rounded font-medium hover:bg-gray-100 transition"
-            >
-              Continue Shopping
-            </button>
           </div>
         </div>
       </div>
@@ -344,8 +527,19 @@ const PlaceOrder = () => {
           <Title text1={'DELIVERY'} text2={'INFORMATION'} />
         </div>
         {locationHint && (
-          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            {locationHint}
+          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 space-y-2">
+            {locationPrecision && (
+              <div
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                  locationPrecision.startsWith('Exact GPS')
+                    ? 'bg-emerald-100 text-emerald-900'
+                    : 'bg-amber-100 text-amber-900'
+                }`}
+              >
+                Precision: {locationPrecision}
+              </div>
+            )}
+            <div>{locationHint}</div>
           </div>
         )}
         <button
@@ -508,6 +702,26 @@ const PlaceOrder = () => {
               </p>
             </div>
           </div>
+
+          {requiresUpiId && (
+            <div className="mt-4">
+              <label htmlFor="upiId" className="block text-sm font-medium text-gray-700 mb-1">
+                UPI ID
+              </label>
+              <input
+                id="upiId"
+                type="text"
+                value={upiId}
+                onChange={(event) => setUpiId(event.target.value)}
+                placeholder="example@oksbi"
+                className="border border-gray-300 rounded py-2 px-3 w-full"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter your UPI ID and confirm to place the order.
+              </p>
+            </div>
+          )}
 
           {/* -------------- Payment method selection -------------- */}
 

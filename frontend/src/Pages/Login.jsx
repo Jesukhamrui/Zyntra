@@ -164,6 +164,10 @@ const Login = () => {
         <button className="w-1/2 m-auto bg-black text-white px-8 py-2 mt-4 ">
           {isSubmitting ? 'PLEASE WAIT...' : currentState === 'Login' ? 'Sign In' : 'Sign Up'}
         </button>
+
+        <p className="text-xs text-gray-500 text-center mt-2">
+          Demo login: testuser@example.com / testuser123
+        </p>
       </div>
     </form>
   );
